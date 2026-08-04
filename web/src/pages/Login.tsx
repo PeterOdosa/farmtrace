@@ -17,66 +17,73 @@ export default function Login() {
 
     try {
       await signIn(email, password);
-      navigate('/dashboard');
+      const redirect = searchParams.get('redirect') || '/dashboard';
+      navigate(redirect);
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      setError(err.message || 'Failed to sign in');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md rounded-lg bg-white p-8 shadow">
-        <h1 className="mb-2 text-2xl font-bold text-green-800">FarmTrace</h1>
-        <p className="mb-6 text-gray-600">Sign in to your account</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-green-800 mb-2">FarmTrace</h1>
+          <p className="text-gray-600">Sign in to your account</p>
+        </div>
 
-        {error && (
-          <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email
             </label>
             <input
+              id="email"
               type="email"
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-              required
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
             <input
+              id="password"
               type="password"
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-              required
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded bg-green-600 px-4 py-2 text-white transition hover:bg-green-700 disabled:opacity-50"
+            className="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="text-center text-sm text-gray-600 mt-6">
           Don't have an account?{' '}
-          <Link to="/signup" className="font-medium text-green-600 hover:underline">
-            Sign up
+          <Link to="/signup" className="text-green-600 font-medium hover:underline">
+            Create one
           </Link>
         </p>
       </div>
