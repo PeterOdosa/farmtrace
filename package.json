@@ -1,0 +1,18 @@
+{
+  "name": "farmtrace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Farm mapping and planning application",
+  "scripts": {
+    "dev:api": "npm -w api run dev",
+    "dev:web": "npm -w web run dev",
+    "dev:mobile": "npm -w mobile start",
+    "build:web": "npm -w web run build",
+    "build:api": "npm -w api run build",
+    "db:migrate": "npm -w api run db:migrate",
+    "db:seed": "npm -w api run db:seed"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.1"
+  }
+}

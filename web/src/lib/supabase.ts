@@ -1,0 +1,47 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ycvcfvnyoqcoziddcbrx.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbG...cXGc';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export type Profile = {
+  id: string;
+  email: string;
+  role: 'farmer' | 'agronomist' | 'org_admin';
+  created_at: string;
+  updated_at: string;
+};
+
+export type Farm = {
+  id: string;
+  name: string;
+  owner_id: string;
+  crop_type: string | null;
+  area_hectares: number | null;
+  perimeter_km: number | null;
+  boundary: any | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Road = {
+  id: string;
+  farm_id: string;
+  label: string;
+  path: any;
+  length_km: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FarmPlan = {
+  id: string;
+  farm_id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  status: 'draft' | 'active' | 'completed';
+  created_at: string;
+  updated_at: string;
+};

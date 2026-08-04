@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+
+# native
+android/
+ios/
+
+# native cache
+*.jsc
+*.jscinfo
+
+# local dev config
+.env
+.env.local
+.env.production
+
+# debug logs
+*.log
+
+# Expo build output
+dist/
+web-build/
+
+# metro
+.metro-health-check*
+
+# typescript
+*.tsbuildinfo
+
+# testing
+coverage/
+
+# misc
+.DS_Store
+*.swp
+*.swo

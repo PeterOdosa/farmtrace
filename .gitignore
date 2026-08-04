@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# API
+api/src/db/
+
+# Mobile
+mobile/.expo/
+mobile/android/
+mobile/ios/
+mobile/*.jks
+mobile/*.p12
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Mapbox tokens (mobile)
+mobile/.mapbox
+
+# Expo
+mobile/dist/
