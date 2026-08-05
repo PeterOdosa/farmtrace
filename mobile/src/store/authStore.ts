@@ -6,6 +6,9 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  isCheckingAuth: boolean;
+  isAuthenticated: boolean;
+  setIsCheckingAuth: (value: boolean) => void;
   initialize: () => Promise<void>;
   signUp: (email: string, password: string, role: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -17,17 +20,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
   isLoading: true,
+  isCheckingAuth: true,
+  isAuthenticated: false,
+  setIsCheckingAuth: (value: boolean) => set({ isCheckingAuth: value }),
 
   initialize: async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    set({ session, user: session?.user ?? null, isLoading: false });
+    const hasUser = session?.user ?? null;
+    set({ session, user: hasUser, isLoading: false, isAuthenticated: !!hasUser });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session, user: session?.user ?? null });
+      const user = session?.user ?? null;
+      set({ session, user, isAuthenticated: !!user });
     });
 
-    return () => subscription.unsubscribe();
+    // Store subscription for cleanup (returned separately if needed)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _cleanup = () => subscription.unsubscribe();
   },
 
   signUp: async (email: string, password: string, role: string) => {
@@ -61,7 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ user: null, session: null });
+    set({ user: null, session: null, isAuthenticated: false });
   },
 
   refreshSession: async () => {

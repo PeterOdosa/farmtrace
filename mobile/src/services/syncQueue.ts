@@ -173,7 +173,7 @@ export function useSyncQueue() {
     setStatus(getSyncStatus());
   }, []);
 
-  const addSyncAction = useCallback((opts: AddSyncActionOptions): string => {
+  const addSyncActionFn = useCallback((opts: AddSyncActionOptions): string => {
     return addSyncActionInternal(opts);
   }, []);
 
@@ -202,7 +202,7 @@ export function useSyncQueue() {
   }, [isConnected, refreshStatus]);
 
   return {
-    addSyncAction,
+    addSyncAction: addSyncActionFn,
     processQueue: processQueueFn,
     queueLength,
     pendingCount: queueLength, // alias for backward compatibility

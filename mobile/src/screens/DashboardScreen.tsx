@@ -17,24 +17,26 @@ import { getFarms } from '../services/api';
 import { getCachedFarms, setCachedFarms, clearAllCache } from '../services/dataCache';
 import { useSyncQueue, getSyncStatus } from '../services/syncQueue';
 import { networkStatus } from '../services/connectionMonitor';
+import { Button } from '../components';
+import { colors } from '../config/colors';
 
 interface Farm {
   id: string;
   name: string;
-  crop_type: string;
-  area_hectares: number;
-  perimeter_km: number;
+  crop_type?: string;
+  area_hectares?: number;
+  perimeter_km?: number;
   updated_at: string;
 }
 
 export default function DashboardScreen() {
   const navigation = useNavigation<any>();
-  const { user, setUser, clearAuth } = useAuthStore();
+  const { user, signOut } = useAuthStore();
   const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-  const syncStatus = useSyncQueue();
+  const syncState = useSyncQueue();
 
   const fetchFarms = async (silent = false) => {
     const offline = !networkStatus.isConnected;
@@ -125,7 +127,7 @@ export default function DashboardScreen() {
         text: 'Sign Out',
         style: 'destructive',
         onPress: async () => {
-          await useAuthStore.getState().signOut();
+          await signOut();
           navigation.navigate('Login');
         },
       },
@@ -186,15 +188,15 @@ export default function DashboardScreen() {
 
   const syncLabel = () => {
     if (isOffline) return '📴 Offline';
-    if (syncStatus.status === 'pending') return `⚠️ ${syncStatus.pendingCount} pending`;
-    if (syncStatus.status === 'syncing') return '🔄 Syncing...';
+    if (syncState.status === 'pending') return `⚠️ ${syncState.pendingCount} pending`;
+    if (syncState.status === 'syncing') return '🔄 Syncing...';
     return '✅ Synced';
   };
 
   const syncColor = () => {
     if (isOffline) return '#dc2626';
-    if (syncStatus.status === 'pending') return '#ea580c';
-    if (syncStatus.status === 'syncing') return '#2563eb';
+    if (syncState.status === 'pending') return '#ea580c';
+    if (syncState.status === 'syncing') return '#2563eb';
     return '#16a34a';
   };
 
@@ -203,7 +205,7 @@ export default function DashboardScreen() {
       {/* Header with sync indicator */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hello, {user?.email?.split('@')[0]}</Text>
+          <Text style={styles.greeting}>Hello, {user?.email?.split('@')[0] ?? 'User'}</Text>
           <Text style={styles.headerSub}>Your Farms</Text>
         </View>
         <View style={styles.headerRight}>

@@ -328,13 +328,13 @@ export default function BoundaryMapScreen() {
       };
 
       if (!isConnected) {
-        // Offline: queue the action
+        // Offline: queue the action with Supabase-compatible format
         addSyncAction({
           action: 'save-farm',
-          method: boundaryMode === 'create' ? 'post' : 'put',
-          url: boundaryMode === 'create' ? '/farms' : `/farms/${farmId}`,
+          table: 'farms',
+          method: boundaryMode === 'create' ? 'insert' : 'update',
           payload,
-          priority: 2,
+          filter: boundaryMode === 'create' ? undefined : { id: farmId as string },
         });
         setSaving(false);
         setShowSaveModal(false);
@@ -348,11 +348,11 @@ export default function BoundaryMapScreen() {
 
       // Online: save directly
       if (boundaryMode === 'create') {
-        await createFarm(payload.name, payload.crop_type, payload.boundary);
+        await createFarm(payload.name, payload.crop_type ?? '', payload.boundary);
       } else if (farmId) {
         await updateFarm(farmId, {
           name: payload.name,
-          crop_type: payload.crop_type,
+          crop_type: payload.crop_type ?? undefined,
           boundary: payload.boundary
         });
       }

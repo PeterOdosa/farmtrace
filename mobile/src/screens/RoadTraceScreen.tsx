@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Polygon, Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import type { LocationSubscription } from 'expo-location';
@@ -195,13 +196,13 @@ export default function RoadTraceScreen() {
       };
 
       if (!isConnected) {
-        // Offline: queue the action
+        // Offline: queue the action with Supabase-compatible format
         addSyncAction({
           action: 'save-road',
-          method: 'post',
-          url: `/farms/${farmId}/roads`,
+          table: 'roads',
+          method: 'insert',
           payload,
-          priority: 2,
+          filter: undefined,
         });
         setSaving(false);
         setShowSaveModal(false);

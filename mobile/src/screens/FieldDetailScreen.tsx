@@ -105,7 +105,11 @@ export default function FieldDetailScreen() {
         try {
           const roadsData = await getRoads(farm.id);
           setRoads(roadsData);
-          setCachedRoads(farm.id, roadsData);
+          setCachedRoads(farm.id, roadsData.map((r) => ({
+            ...r,
+            label: r.label ?? '',
+            length_km: r.length_km ?? 0,
+          })));
         } catch {
           // API failed — keep cached roads if available
           const cached = getCachedRoads(farm.id);

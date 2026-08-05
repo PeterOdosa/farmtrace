@@ -35,9 +35,9 @@ const ROADS_TTL = 10 * 60 * 1000;        // 10 minutes
 export interface FarmListItem {
   id: string;
   name: string;
-  crop_type: string;
-  area_hectares: number;
-  perimeter_km: number;
+  crop_type?: string;
+  area_hectares?: number;
+  perimeter_km?: number;
   updated_at: string;
 }
 
