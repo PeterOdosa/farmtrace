@@ -11,8 +11,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
     "axios": "^1.7.9",
+    "mapbox-gl": "^3.28.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-map-gl": "^8.1.2",
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
