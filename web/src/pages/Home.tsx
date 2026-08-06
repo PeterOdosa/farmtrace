@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 // ─── Animated polygon hero SVG ───────────────────────────────────────────────
@@ -151,7 +151,7 @@ function Nav() {
       <div className="hidden md:flex items-center gap-6 text-sm text-[#4a4a48]">
         <a href="#features" className="hover:text-[#1a4d2e] transition-colors">Features</a>
         <a href="#how-it-works" className="hover:text-[#1a4d2e] transition-colors">How it works</a>
-        <a href="#pricing" className="hover:text-[#1a4d2e] transition-colors">Pricing</a>
+        <a href="#organizations" className="hover:text-[#1a4d2e] transition-colors">For organizations</a>
       </div>
       <div className="flex items-center gap-3">
         <Link
@@ -433,6 +433,149 @@ function ProofStrip() {
   );
 }
 
+// ─── For organizations ────────────────────────────────────────────────────────
+function ForOrganizations() {
+  return (
+    <section id="organizations" className="w-full py-20 bg-[#f7f5f0]">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="grid md:grid-cols-2 gap-14 items-center">
+
+          {/* Left — copy */}
+          <div>
+            <div className="inline-flex items-center gap-2 bg-[#e8f0e9] text-[#1a4d2e] text-xs font-medium px-3 py-1.5 rounded-full mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#2d7a4f]" aria-hidden="true" />
+              For agricultural organizations
+            </div>
+            <h2
+              className="text-3xl md:text-4xl font-bold text-[#1c1c1a] mb-5 leading-tight"
+              style={{ fontFamily: "'DM Serif Display', serif" }}
+            >
+              Deploy FarmTrace
+              <br />
+              <span className="text-[#1a4d2e]">across your entire operation.</span>
+            </h2>
+            <p className="text-sm text-[#4a4a48] leading-relaxed mb-8 max-w-md">
+              FarmTrace is built for agricultural companies, cooperatives, and
+              development organizations who need a unified tool for their farmers
+              and agronomists. One workspace. Every farm. One dashboard.
+            </p>
+
+            {/* Benefit list */}
+            <ul className="flex flex-col gap-4 mb-10">
+              {[
+                {
+                  title: "Organization workspace",
+                  body: "All your farmers and agronomists under one account. Add members with an invite code — no IT setup required.",
+                },
+                {
+                  title: "Remote agronomist planning",
+                  body: "Your agronomists design farm layouts from the office. Farmers see the plan live on their phones in the field.",
+                },
+                {
+                  title: "Full data ownership",
+                  body: "Every polygon, plan, and measurement belongs to your organization. Export anytime in standard GIS formats.",
+                },
+                {
+                  title: "Scales with your portfolio",
+                  body: "Whether you manage 10 farms or 10,000 — FarmTrace handles the load. Pricing is tailored to your scale.",
+                },
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded-full bg-[#1a4d2e] flex items-center justify-center shrink-0 mt-0.5">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                      <path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[#1c1c1a] mb-0.5">{item.title}</p>
+                    <p className="text-sm text-[#5a5a57] leading-relaxed">{item.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <a
+              href="mailto:hello@farmtrace.app?subject=Organization inquiry"
+              className="inline-flex items-center gap-2 bg-[#1a4d2e] text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-[#2d7a4f] transition-colors"
+            >
+              Get in touch
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                <path d="M2 6.5h9M8 3l3.5 3.5L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+            <p className="text-xs text-[#8a8a87] mt-3">
+              Pricing is tailored to your organization's size — no public tiers, no surprises.
+            </p>
+          </div>
+
+          {/* Right — org dashboard illustration */}
+          <div className="bg-[#0f3320] rounded-2xl p-6 shadow-xl">
+            <svg viewBox="0 0 380 300" className="w-full" aria-label="Organization dashboard illustration" role="img">
+              <defs>
+                <pattern id="org-grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                  <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#2d7a4f" strokeWidth="0.4" opacity="0.4" />
+                </pattern>
+              </defs>
+              <rect width="380" height="300" fill="#0f3320" rx="12" />
+              <rect width="380" height="300" fill="url(#org-grid)" rx="12" />
+
+              {/* Header bar */}
+              <rect x="16" y="16" width="348" height="36" rx="8" fill="#1a4d2e" opacity="0.9" />
+              <circle cx="36" cy="34" r="8" fill="#2d7a4f" />
+              <rect x="52" y="28" width="60" height="6" rx="3" fill="#9dc9ae" opacity="0.6" />
+              <rect x="260" y="26" width="48" height="10" rx="5" fill="#c8a96e" opacity="0.9" />
+              <rect x="314" y="26" width="36" height="10" rx="5" fill="#2d7a4f" />
+
+              {/* Stat cards row */}
+              {[0,1,2,3].map((i) => (
+                <g key={i}>
+                  <rect x={16 + i * 88} y="66" width="78" height="48" rx="6" fill="#1a4d2e" opacity="0.7" />
+                  <rect x={24 + i * 88} y="76" width="30" height="5" rx="2.5" fill="#9dc9ae" opacity="0.5" />
+                  <rect x={24 + i * 88} y="87" width={[40,32,46,28][i]} height="8" rx="4" fill="#c8a96e" opacity="0.8" />
+                  <rect x={24 + i * 88} y="101" width={[20,28,18,24][i]} height="4" rx="2" fill="#4ade80" opacity="0.4" />
+                </g>
+              ))}
+
+              {/* Farm cards */}
+              {[0,1,2].map((i) => (
+                <g key={i}>
+                  <rect x={16 + i * 122} y="130" width="110" height="80" rx="6" fill="#1a4d2e" opacity="0.6" />
+                  {/* Mini polygon */}
+                  <polygon
+                    points={`${46 + i*122},145 ${76 + i*122},148 ${82 + i*122},168 ${64 + i*122},178 ${42 + i*122},165`}
+                    fill="#2d7a4f"
+                    opacity="0.4"
+                  />
+                  <polygon
+                    points={`${46 + i*122},145 ${76 + i*122},148 ${82 + i*122},168 ${64 + i*122},178 ${42 + i*122},165`}
+                    fill="none"
+                    stroke="#c8a96e"
+                    strokeWidth="1"
+                  />
+                  <rect x={24 + i * 122} y="185" width={[55,48,62][i]} height="5" rx="2.5" fill="#9dc9ae" opacity="0.6" />
+                  <rect x={24 + i * 122} y="196" width={[38,44,30][i]} height="4" rx="2" fill="#9dc9ae" opacity="0.3" />
+                </g>
+              ))}
+
+              {/* Bottom bar — member list hint */}
+              <rect x="16" y="224" width="348" height="60" rx="6" fill="#1a4d2e" opacity="0.5" />
+              {[0,1,2,3,4].map((i) => (
+                <g key={i}>
+                  <circle cx={32} cy={244 + i * 10} r="4" fill="#c8a96e" opacity="0.5" />
+                  <rect x="42" y={241 + i * 10} width={[80,65,90,55,72][i]} height="4" rx="2" fill="#9dc9ae" opacity={i === 0 ? 0.6 : 0.3} />
+                  <rect x={300} y={241 + i * 10} width="36" height="4" rx="2" fill={["#c8a96e","#4ade80","#c8a96e","#4ade80","#9dc9ae"][i]} opacity="0.5" />
+                </g>
+              ))}
+            </svg>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── CTA ──────────────────────────────────────────────────────────────────────
 function CTA() {
   return (
@@ -490,32 +633,6 @@ function Footer() {
   );
 }
 
-// ─── Scroll-to-top button ─────────────────────────────────────────────────────
-function ScrollToTop() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 600);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-
-  return (
-    <button
-      onClick={scrollToTop}
-      aria-label="Scroll to top"
-      className={`fixed bottom-6 right-6 z-50 w-10 h-10 rounded-full bg-[#1a4d2e] text-white shadow-lg flex items-center justify-center hover:bg-[#2d7a4f] transition-all duration-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M3 10l5-5 5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-}
-
 // ─── Font loader ──────────────────────────────────────────────────────────────
 function FontLoader() {
   useEffect(() => {
@@ -524,7 +641,9 @@ function FontLoader() {
     link.href =
       "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap";
     document.head.appendChild(link);
-    return () => { document.head.removeChild(link); };
+    return () => {
+      document.head.removeChild(link);
+    };
   }, []);
   return null;
 }
@@ -540,10 +659,10 @@ export default function Home() {
         <Features />
         <HowItWorks />
         <ProofStrip />
+        <ForOrganizations />
         <CTA />
       </main>
       <Footer />
-      <ScrollToTop />
     </div>
   );
 }
