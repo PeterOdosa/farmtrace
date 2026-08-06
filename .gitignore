@@ -39,3 +39,4 @@ mobile/.mapbox
 
 # Expo
 mobile/dist/
+.vercel
