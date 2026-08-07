@@ -1,6 +1,33 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+// ─── Scroll to top ────────────────────────────────────────────────────────────
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 600);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
+  return (
+    <button
+      onClick={scrollToTop}
+      aria-label="Scroll to top"
+      className={`fixed bottom-6 right-6 z-50 w-11 h-11 rounded-full bg-[#1a4d2e] text-white flex items-center justify-center shadow-lg hover:bg-[#2d7a4f] transition-all duration-300 ${
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+      }`}
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 12V4M4 8l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
 // ─── Animated polygon hero SVG ───────────────────────────────────────────────
 function PolygonHero() {
   const [progress, setProgress] = useState(0);
@@ -433,14 +460,46 @@ function ProofStrip() {
   );
 }
 
+
 // ─── For organizations ────────────────────────────────────────────────────────
 function ForOrganizations() {
-  return (
-    <section id="organizations" className="w-full py-20 bg-[#f7f5f0]">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="grid md:grid-cols-2 gap-14 items-center">
+  const [formOpen, setFormOpen] = useState(false);
+  const [formData, setFormData] = useState({ name: "", org: "", email: "", message: "" });
+  const [formState, setFormState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
-          {/* Left — copy */}
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormState("sending");
+    try {
+      const res = await fetch("https://api.web3forms.com/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_key: "YOUR_WEB3FORMS_ACCESS_KEY", // ← replace with your key from web3forms.com
+          subject: `FarmTrace org inquiry from ${formData.org}`,
+          from_name: formData.name,
+          ...formData,
+        }),
+      });
+      if (res.ok) {
+        setFormState("sent");
+      } else {
+        setFormState("error");
+      }
+    } catch {
+      setFormState("error");
+    }
+  };
+
+  const updateField = (field: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
+
+  return (
+    <section id="organizations" className="w-full py-20 bg-white">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="grid md:grid-cols-2 gap-14 items-start">
+
+          {/* Left — copy + CTAs */}
           <div>
             <div className="inline-flex items-center gap-2 bg-[#e8f0e9] text-[#1a4d2e] text-xs font-medium px-3 py-1.5 rounded-full mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-[#2d7a4f]" aria-hidden="true" />
@@ -494,23 +553,158 @@ function ForOrganizations() {
               ))}
             </ul>
 
-            {/* CTA */}
+            {/* Primary CTA — Calendly */}
             <a
-              href="mailto:hello@farmtrace.app?subject=Organization inquiry"
-              className="inline-flex items-center gap-2 bg-[#1a4d2e] text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-[#2d7a4f] transition-colors"
+              href="https://calendly.com/YOUR_CALENDLY_LINK"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#1a4d2e] text-white px-6 py-3 rounded-lg text-sm font-medium hover:bg-[#2d7a4f] transition-colors mb-4"
             >
-              Get in touch
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                <path d="M2 6.5h9M8 3l3.5 3.5L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <rect x="1" y="2" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M1 6h13M5 1v2M10 1v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <path d="M4 9h2v2H4z" fill="currentColor" />
               </svg>
+              Book a 20-minute call
             </a>
-            <p className="text-xs text-[#8a8a87] mt-3">
+
+            {/* Secondary CTA — toggle contact form */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setFormOpen(!formOpen)}
+                className="text-sm text-[#1a4d2e] font-medium hover:underline flex items-center gap-1.5"
+                aria-expanded={formOpen}
+                aria-controls="contact-form"
+              >
+                {formOpen ? "Hide form" : "Prefer to send a message instead?"}
+                <svg
+                  width="12" height="12" viewBox="0 0 12 12" fill="none"
+                  className={`transition-transform ${formOpen ? "rotate-180" : ""}`}
+                  aria-hidden="true"
+                >
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {/* Inline contact form */}
+              {formOpen && (
+                <div id="contact-form" className="mt-5">
+                  {formState === "sent" ? (
+                    <div className="bg-[#e8f0e9] border border-[#2d7a4f] rounded-xl px-5 py-6 text-center">
+                      <div className="w-10 h-10 rounded-full bg-[#1a4d2e] flex items-center justify-center mx-auto mb-3">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                          <path d="M3.5 9l4 4 7-7" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-semibold text-[#1a4d2e] mb-1">Message sent!</p>
+                      <p className="text-xs text-[#4a4a48]">We'll get back to you within 1 business day.</p>
+                    </div>
+                  ) : (
+                    <form
+                      onSubmit={handleSubmit}
+                      noValidate
+                      className="bg-[#f7f5f0] border border-[#e4e4e0] rounded-xl p-5 flex flex-col gap-3"
+                    >
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label htmlFor="contact-name" className="block text-xs font-medium text-[#3a3a38] mb-1.5">
+                            Your name
+                          </label>
+                          <input
+                            id="contact-name"
+                            type="text"
+                            required
+                            value={formData.name}
+                            onChange={(e) => updateField("name", e.target.value)}
+                            placeholder="Adebayo Okafor"
+                            className="w-full bg-white border border-[#d8d8d4] rounded-lg px-3 py-2 text-sm text-[#1c1c1a] placeholder-[#b0b0ac] focus:outline-none focus:ring-2 focus:ring-[#1a4d2e] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="contact-org" className="block text-xs font-medium text-[#3a3a38] mb-1.5">
+                            Organization
+                          </label>
+                          <input
+                            id="contact-org"
+                            type="text"
+                            required
+                            value={formData.org}
+                            onChange={(e) => updateField("org", e.target.value)}
+                            placeholder="Agrico Ltd"
+                            className="w-full bg-white border border-[#d8d8d4] rounded-lg px-3 py-2 text-sm text-[#1c1c1a] placeholder-[#b0b0ac] focus:outline-none focus:ring-2 focus:ring-[#1a4d2e] focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="contact-email" className="block text-xs font-medium text-[#3a3a38] mb-1.5">
+                          Work email
+                        </label>
+                        <input
+                          id="contact-email"
+                          type="email"
+                          required
+                          value={formData.email}
+                          onChange={(e) => updateField("email", e.target.value)}
+                          placeholder="you@company.com"
+                          className="w-full bg-white border border-[#d8d8d4] rounded-lg px-3 py-2 text-sm text-[#1c1c1a] placeholder-[#b0b0ac] focus:outline-none focus:ring-2 focus:ring-[#1a4d2e] focus:border-transparent"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="contact-message" className="block text-xs font-medium text-[#3a3a38] mb-1.5">
+                          Message <span className="text-[#8a8a87] font-normal">(optional)</span>
+                        </label>
+                        <textarea
+                          id="contact-message"
+                          rows={3}
+                          value={formData.message}
+                          onChange={(e) => updateField("message", e.target.value)}
+                          placeholder="Tell us about your organization and how many farms you manage…"
+                          className="w-full bg-white border border-[#d8d8d4] rounded-lg px-3 py-2 text-sm text-[#1c1c1a] placeholder-[#b0b0ac] focus:outline-none focus:ring-2 focus:ring-[#1a4d2e] focus:border-transparent resize-none"
+                        />
+                      </div>
+
+                      {formState === "error" && (
+                        <p className="text-xs text-red-600" role="alert">
+                          Something went wrong — please try again or email us directly at hello@farmtrace.app
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={formState === "sending"}
+                        className="w-full bg-[#1a4d2e] text-white py-2.5 rounded-lg text-sm font-medium hover:bg-[#2d7a4f] transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {formState === "sending" ? (
+                          <>
+                            <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+                              <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                            </svg>
+                            Sending…
+                          </>
+                        ) : (
+                          "Send message"
+                        )}
+                      </button>
+                      <p className="text-[10px] text-[#8a8a87] text-center">
+                        We'll respond within 1 business day. No spam, ever.
+                      </p>
+                    </form>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-[#8a8a87] mt-6">
               Pricing is tailored to your organization's size — no public tiers, no surprises.
             </p>
           </div>
 
           {/* Right — org dashboard illustration */}
-          <div className="bg-[#0f3320] rounded-2xl p-6 shadow-xl">
+          <div className="bg-[#0f3320] rounded-2xl p-6 shadow-xl sticky top-8">
             <svg viewBox="0 0 380 300" className="w-full" aria-label="Organization dashboard illustration" role="img">
               <defs>
                 <pattern id="org-grid" width="30" height="30" patternUnits="userSpaceOnUse">
@@ -519,15 +713,13 @@ function ForOrganizations() {
               </defs>
               <rect width="380" height="300" fill="#0f3320" rx="12" />
               <rect width="380" height="300" fill="url(#org-grid)" rx="12" />
-
               {/* Header bar */}
               <rect x="16" y="16" width="348" height="36" rx="8" fill="#1a4d2e" opacity="0.9" />
               <circle cx="36" cy="34" r="8" fill="#2d7a4f" />
               <rect x="52" y="28" width="60" height="6" rx="3" fill="#9dc9ae" opacity="0.6" />
               <rect x="260" y="26" width="48" height="10" rx="5" fill="#c8a96e" opacity="0.9" />
               <rect x="314" y="26" width="36" height="10" rx="5" fill="#2d7a4f" />
-
-              {/* Stat cards row */}
+              {/* Stat cards */}
               {[0,1,2,3].map((i) => (
                 <g key={i}>
                   <rect x={16 + i * 88} y="66" width="78" height="48" rx="6" fill="#1a4d2e" opacity="0.7" />
@@ -536,29 +728,23 @@ function ForOrganizations() {
                   <rect x={24 + i * 88} y="101" width={[20,28,18,24][i]} height="4" rx="2" fill="#4ade80" opacity="0.4" />
                 </g>
               ))}
-
               {/* Farm cards */}
               {[0,1,2].map((i) => (
                 <g key={i}>
                   <rect x={16 + i * 122} y="130" width="110" height="80" rx="6" fill="#1a4d2e" opacity="0.6" />
-                  {/* Mini polygon */}
                   <polygon
                     points={`${46 + i*122},145 ${76 + i*122},148 ${82 + i*122},168 ${64 + i*122},178 ${42 + i*122},165`}
-                    fill="#2d7a4f"
-                    opacity="0.4"
+                    fill="#2d7a4f" opacity="0.4"
                   />
                   <polygon
                     points={`${46 + i*122},145 ${76 + i*122},148 ${82 + i*122},168 ${64 + i*122},178 ${42 + i*122},165`}
-                    fill="none"
-                    stroke="#c8a96e"
-                    strokeWidth="1"
+                    fill="none" stroke="#c8a96e" strokeWidth="1"
                   />
                   <rect x={24 + i * 122} y="185" width={[55,48,62][i]} height="5" rx="2.5" fill="#9dc9ae" opacity="0.6" />
                   <rect x={24 + i * 122} y="196" width={[38,44,30][i]} height="4" rx="2" fill="#9dc9ae" opacity="0.3" />
                 </g>
               ))}
-
-              {/* Bottom bar — member list hint */}
+              {/* Member list */}
               <rect x="16" y="224" width="348" height="60" rx="6" fill="#1a4d2e" opacity="0.5" />
               {[0,1,2,3,4].map((i) => (
                 <g key={i}>
@@ -641,9 +827,7 @@ function FontLoader() {
     link.href =
       "https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap";
     document.head.appendChild(link);
-    return () => {
-      document.head.removeChild(link);
-    };
+    return () => { document.head.removeChild(link); };
   }, []);
   return null;
 }
@@ -663,6 +847,7 @@ export default function Home() {
         <CTA />
       </main>
       <Footer />
+      <ScrollToTop />
     </div>
   );
 }
