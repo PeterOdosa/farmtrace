@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import MapView, { Polygon, Marker, Polyline } from 'react-native-maps';
+import FarmMap from '../components/FarmMap';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { getRoads } from '../services/api';
@@ -17,6 +17,11 @@ import { getCachedFarm, setCachedFarm, getCachedRoads, setCachedRoads } from '..
 import { networkStatus } from '../services/connectionMonitor';
 import { useSyncQueue } from '../services/syncQueue';
 import * as Location from 'expo-location';
+
+interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
 
 interface RouteParams {
   farm: {
@@ -36,8 +41,6 @@ export default function FieldDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { farm }: RouteParams = route.params || {};
-
-  const mapRef = useRef<MapView>(null);
 
   const [loading, setLoading] = useState(true);
   const [roads, setRoads] = useState<any[]>([]);
@@ -69,26 +72,17 @@ export default function FieldDetailScreen() {
     boundaryCoords.length >= 3
       ? {
           type: 'Polygon' as const,
-          coordinates: [boundaryCoords.map((c: any) => [c.longitude, c.latitude])],
+          coordinates: [boundaryCoords.map((c: Coordinate) => [c.longitude, c.latitude])],
         }
       : null;
 
-  // Fit map to boundary
-  useEffect(() => {
-    if (boundaryCoords.length >= 2 && mapRef.current) {
-      const lats = boundaryCoords.map((c: any) => c.latitude);
-      const lngs = boundaryCoords.map((c: any) => c.longitude);
-      mapRef.current.animateToRegion(
-        {
-          latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
-          longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-          latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.2, 0.01),
-          longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.2, 0.01),
-        },
-        1000
-      );
-    }
-  }, [farm]);
+  // Calculate boundary center
+  const boundaryCenter = boundaryCoords.length >= 2
+    ? {
+        latitude: (Math.min(...boundaryCoords.map((c: Coordinate) => c.latitude)) + Math.max(...boundaryCoords.map((c: Coordinate) => c.latitude))) / 2,
+        longitude: (Math.min(...boundaryCoords.map((c: Coordinate) => c.longitude)) + Math.max(...boundaryCoords.map((c: Coordinate) => c.longitude))) / 2,
+      }
+    : { latitude: 9.082, longitude: 7.3986 };
 
   // Fetch roads with offline fallback
   useEffect(() => {
@@ -239,45 +233,31 @@ export default function FieldDetailScreen() {
 
       {/* Map */}
       <View style={styles.mapContainer}>
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          mapType={layers.live_position ? 'satellite' : 'standard'}
-        >
-          {/* Boundary */}
-          {layers.boundary && geoJSONBoundary && (
-            <Polygon
-              coordinates={boundaryCoords}
-              fillColor="rgba(26, 86, 50, 0.3)"
-              strokeColor={colors.primary}
-              strokeWidth={2}
-            />
-          )}
-
-          {/* Roads */}
-          {layers.roads &&
-            roads.map((road) => {
-              const coords = road.path?.coordinates?.map(
-                (c: [number, number]) => ({
-                  latitude: c[1],
-                  longitude: c[0],
-                })
-              );
-              return coords && coords.length >= 2 ? (
-                <Polyline
-                  key={road.id}
-                  coordinates={coords}
-                  strokeColor="#e67e22"
-                  strokeWidth={3}
-                />
-              ) : null;
-            })}
-
-          {/* Live position */}
-          {layers.live_position && livePosition && (
-            <Marker coordinate={livePosition} title="You" pinColor="#ff6b35" />
-          )}
-        </MapView>
+        <FarmMap
+          center={boundaryCenter}
+          zoom={15}
+          polygonCoordinates={layers.boundary && boundaryCoords.length >= 3 ? boundaryCoords : undefined}
+          polylines={layers.roads ? roads.map((road) => {
+            const coords = road.path?.coordinates?.map(
+              (c: [number, number]) => ({
+                latitude: c[1],
+                longitude: c[0],
+              })
+            );
+            return coords && coords.length >= 2 ? {
+              coordinates: coords,
+              color: '#e67e22',
+              width: 3,
+            } : null;
+          }).filter(Boolean) as Array<{coordinates: Coordinate[]; color?: string; width?: number}> : undefined}
+          markers={layers.live_position && livePosition ? [{
+            coordinate: livePosition as Coordinate,
+            color: '#ff6b35',
+          }] : []}
+          showUserLocation={layers.live_position}
+          userLocation={layers.live_position ? livePosition : null}
+          styleURL={layers.live_position ? 'satellite' : 'streets'}
+        />
 
         {/* Layer toggles */}
         <View style={styles.layerToggles}>

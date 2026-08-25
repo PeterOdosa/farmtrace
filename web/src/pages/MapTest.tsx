@@ -1,23 +1,93 @@
-import { useState, useCallback, useRef } from "react";
-import MapGl, { Marker, Popup, NavigationControl, ScaleControl } from "react-map-gl/mapbox";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { MAPBOX_TOKEN } from "../config/env";
+import { useState, useCallback, useRef, useEffect } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { STADIA_API_KEY, TILE_STYLES } from "../config/env";
 
-const INITIAL_VIEW_STATE = {
-  latitude: 6.5244,
-  longitude: 3.3792,
-  zoom: 13,
-  bearing: 0,
-  pitch: 0,
-};
+const INITIAL_CENTER = [3.3792, 6.5244] as [number, number]; // [lng, lat] — Lagos
+
+interface MarkerData {
+  lat: number;
+  lng: number;
+  label: string;
+}
+
+const SAMPLE_MARKERS: MarkerData[] = [
+  { lat: 6.5244, lng: 3.3792, label: "Sample Farm A" },
+  { lat: 6.5344, lng: 3.3892, label: "Sample Farm B" },
+  { lat: 6.5144, lng: 3.3692, label: "Sample Farm C" },
+];
 
 export default function MapTest() {
-  const mapRef = useRef<MapGl>(null);
-  const [viewport, setViewport] = useState(INITIAL_VIEW_STATE);
-  const [selectedMarker, setSelectedMarker] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const [center, setCenter] = useState(INITIAL_CENTER);
+  const [zoom, setZoom] = useState(13);
+  const [selectedMarker, setSelectedMarker] = useState<MarkerData | null>(null);
 
-  const handleMarkerClick = useCallback((lat: number, lng: number, label: string) => {
-    setSelectedMarker({ lat, lng, label });
+  // Initialize the map
+  useEffect(() => {
+    if (!mapContainer.current || map.current) return;
+
+    const apiKey = STADIA_API_KEY;
+    if (!apiKey || apiKey === "your-stadia-api-key-here") {
+      mapContainer.current.innerHTML = `
+        <div class="flex items-center justify-center h-full bg-[#1a5632] text-white p-8">
+          <div class="text-center">
+            <p class="text-lg font-semibold mb-2">MapLibre — Setup Required</p>
+            <p class="text-sm text-[#9dc9ae]">Add <code>VITE_STADIA_API_KEY</code> to web/.env</p>
+          </div>
+        </div>`;
+      return;
+    }
+
+    map.current = new maplibregl.Map({
+      container: mapContainer.current,
+      style: TILE_STYLES.satellite,
+      center: INITIAL_CENTER,
+      zoom: 13,
+      attributionControl: true,
+    });
+
+    map.current.addControl(new maplibregl.NavigationControl(), "top-left");
+
+    // Add markers
+    SAMPLE_MARKERS.forEach((m) => {
+      const el = document.createElement("div");
+      el.className = "cursor-pointer hover:scale-110 transition-transform";
+      el.innerHTML = `
+        <svg width="32" height="44" viewBox="0 0 32 44" fill="none">
+          <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 28 16 28s16-16 16-28C32 7.16 24.84 0 16 0z" fill="#1a4d2e" stroke="#c8a96e" stroke-width="2" />
+          <circle cx="16" cy="14" r="6" fill="#c8a96e" />
+        </svg>`;
+      el.addEventListener("click", () => {
+        setSelectedMarker(m);
+      });
+
+      new maplibregl.Marker(el)
+        .setLngLat([m.lng, m.lat])
+        .setPopup(
+          new maplibregl.Popup({ anchor: "top" }).setHTML(`
+            <div class="text-sm">
+              <p class="font-semibold text-[#1c1c1a]">${m.label}</p>
+              <p class="text-[#5a5a57]">${m.lat.toFixed(2)}°N, ${m.lng.toFixed(2)}°E</p>
+              <p class="text-[#1a4d2e] text-xs mt-1 font-medium">Tap to view details</p>
+            </div>
+          `)
+        )
+        .addTo(map.current!);
+    });
+
+    // Track center/zoom on move
+    map.current.on("move", () => {
+      const c = map.current!.getCenter();
+      setCenter([c.lng, c.lat]);
+      setZoom(map.current!.getZoom());
+    });
+
+    return () => {
+      map.current?.remove();
+      map.current = null;
+    };
   }, []);
 
   return (
@@ -32,62 +102,14 @@ export default function MapTest() {
           </div>
           <span className="font-semibold text-sm">FarmTrace — Map Test</span>
         </div>
-        <span className="text-xs text-[#9dc9ae]">Mapbox GL JS + React Map GL</span>
+        <span className="text-xs text-[#9dc9ae]">MapLibre GL + Stadia Maps</span>
       </div>
 
-      <MapGl
-        ref={mapRef}
-        {...viewport}
-        onMove={(evt: any) => setViewport(evt.viewState)}
-        style={{ width: "100%", height: "calc(100% - 48px)" }}
-        mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
-        mapboxAccessToken={MAPBOX_TOKEN}
-      >
-        <NavigationControl position="top-left" />
-        <ScaleControl unit="metric" />
-
-        {[
-          { lat: 6.5244, lng: 3.3792, label: "Sample Farm A" },
-          { lat: 6.5344, lng: 3.3892, label: "Sample Farm B" },
-          { lat: 6.5144, lng: 3.3692, label: "Sample Farm C" },
-        ].map((m: any, i: number) => (
-          <Marker
-            key={i}
-            latitude={m.lat}
-            longitude={m.lng}
-            onClick={(e: any) => {
-              e.preventDefault();
-              handleMarkerClick(m.lat, m.lng, m.label);
-            }}
-          >
-            <div className="cursor-pointer hover:scale-110 transition-transform">
-              <svg width="32" height="44" viewBox="0 0 32 44" fill="none">
-                <path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 28 16 28s16-16 16-28C32 7.16 24.84 0 16 0z" fill="#1a4d2e" stroke="#c8a96e" strokeWidth="2" />
-                <circle cx="16" cy="14" r="6" fill="#c8a96e" />
-              </svg>
-            </div>
-          </Marker>
-        ))}
-
-        {selectedMarker && (
-          <Popup
-            latitude={selectedMarker.lat}
-            longitude={selectedMarker.lng}
-            anchor="top"
-            onClose={() => setSelectedMarker(null)}
-          >
-            <div className="text-sm">
-              <p className="font-semibold text-[#1c1c1a]">{selectedMarker.label}</p>
-              <p className="text-[#5a5a57]">6.52°N, 3.38°E</p>
-              <p className="text-[#1a4d2e] text-xs mt-1 font-medium">Tap to view details</p>
-            </div>
-          </Popup>
-        )}
-      </MapGl>
+      <div ref={mapContainer} className="flex-1 w-full h-full" />
 
       <div className="bg-white border-t px-4 py-2 text-xs text-[#5a5a57] flex justify-between items-center">
-        <span>Zoom: {viewport.zoom?.toFixed(1)}</span>
-        <span>Center: {viewport.latitude?.toFixed(4)}°, {viewport.longitude?.toFixed(4)}°</span>
+        <span>Zoom: {zoom.toFixed(1)}</span>
+        <span>Center: {center[1].toFixed(4)}°, {center[0].toFixed(4)}°</span>
       </div>
     </div>
   );

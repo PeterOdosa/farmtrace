@@ -13,7 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Polygon, Marker, Polyline } from 'react-native-maps';
+import FarmMap from '../components/FarmMap';
 import * as Location from 'expo-location';
 import type { LocationSubscription } from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -38,7 +38,6 @@ export default function RoadTraceScreen() {
   const route = useRoute<any>();
   const { farmId, boundary, mode }: RouteParams = route.params;
 
-  const mapRef = useRef<MapView>(null);
   const watchSubscriptionRef = useRef<LocationSubscription | null>(null);
 
   const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
@@ -64,20 +63,6 @@ export default function RoadTraceScreen() {
 
   useEffect(() => {
     checkPermissions();
-    // Fit map to farm boundary
-    if (boundary.length >= 2 && mapRef.current) {
-      const lats = boundary.map((c) => c.latitude);
-      const lngs = boundary.map((c) => c.longitude);
-      mapRef.current.animateToRegion(
-        {
-          latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
-          longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-          latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.3, 0.02),
-          longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.3, 0.02),
-        },
-        1000
-      );
-    }
   }, []);
 
   const checkPermissions = async () => {
@@ -245,46 +230,30 @@ export default function RoadTraceScreen() {
           longitudeDelta: 0.05,
         };
 
+  // Calculate boundary center
+  const boundaryCenter = boundary.length >= 2
+    ? {
+        latitude: (Math.min(...boundary.map(c => c.latitude)) + Math.max(...boundary.map(c => c.latitude))) / 2,
+        longitude: (Math.min(...boundary.map(c => c.longitude)) + Math.max(...boundary.map(c => c.longitude))) / 2,
+      }
+    : { latitude: 9.082, longitude: 7.3986 };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={initialRegion}
+      <FarmMap
+        center={boundaryCenter}
+        zoom={15}
+        polygonCoordinates={boundary.length >= 3 ? boundary.slice(0, -1) : undefined}
+        polylineCoordinates={coordinates}
+        markers={coordinates.map((coord, i) => ({
+          coordinate: coord,
+          color: i === 0 ? colors.success : '#e67e22',
+        }))}
         onPress={handleMapPress}
-        showsUserLocation={tracking}
-        followsUserLocation={tracking}
-        mapType={tracking ? 'satellite' : 'standard'}
-      >
-        {/* Farm boundary (faded) */}
-        {boundary.length >= 3 && (
-          <Polygon
-            coordinates={boundary.slice(0, -1)}
-            fillColor="rgba(26, 86, 50, 0.15)"
-            strokeColor={colors.primary}
-            strokeWidth={1}
-          />
-        )}
-
-        {/* Road polyline */}
-        {coordinates.length >= 2 && (
-          <Polyline
-            coordinates={coordinates}
-            strokeColor="#e67e22"
-            strokeWidth={4}
-          />
-        )}
-
-        {/* GPS dot */}
-        {livePosition && (
-          <Marker coordinate={livePosition} title="You" pinColor="#ff6b35" />
-        )}
-
-        {/* Points */}
-        {coordinates.map((coord, i) => (
-          <Marker key={i} coordinate={coord} pinColor={i === 0 ? colors.success : '#e67e22'} />
-        ))}
-      </MapView>
+        showUserLocation={tracking}
+        userLocation={livePosition}
+        styleURL={tracking ? 'satellite' : 'streets'}
+      />
 
       {/* Mode indicator */}
       <View style={styles.modeBanner}>

@@ -32,10 +32,7 @@
     },
     "plugins": [
       [
-        "@rnmapbox/maps",
-        {
-          "access_token": "pk.eyJ...YOUR_MAPBOX_TOKEN_HERE"
-        }
+        "@maplibre/maplibre-react-native"
       ]
     ]
   }

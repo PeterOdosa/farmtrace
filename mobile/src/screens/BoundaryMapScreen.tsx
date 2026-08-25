@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Polygon, Marker, Polyline } from 'react-native-maps';
+import FarmMap from '../components/FarmMap';
 import * as Location from 'expo-location';
 import type { LocationSubscription } from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -24,7 +24,6 @@ import { useDataCache, farmCache } from '../services/dataCache';
 import { colors } from '../config/colors';
 
 type Coordinate = { latitude: number; longitude: number };
-
 type BoundaryMode = 'pin' | 'walk';
 
 interface RouteParams {
@@ -38,7 +37,6 @@ export default function BoundaryMapScreen() {
   const route = useRoute<any>();
   const { mode: boundaryMode, farmId, existingBoundary }: RouteParams = route.params || { mode: 'create' };
 
-   const mapRef = useRef<MapView>(null);
   const watchSubscriptionRef = useRef<LocationSubscription | null>(null);
 
   const [coordinates, setCoordinates] = useState<Coordinate[]>(
@@ -75,10 +73,6 @@ export default function BoundaryMapScreen() {
   // Check location permissions on mount
   useEffect(() => {
     checkPermissions();
-    if (existingBoundary && existingBoundary.length > 0) {
-      setCoordinates(existingBoundary);
-      fitMapToBoundary(existingBoundary);
-    }
   }, []);
 
   const checkPermissions = async () => {
@@ -90,43 +84,6 @@ export default function BoundaryMapScreen() {
         'This app needs location access to trace farm boundaries. Please enable it in settings.'
       );
     }
-  };
-
-  // Fit map to show all boundary points
-  const fitMapToBoundary = useCallback((coords: Coordinate[]) => {
-    if (coords.length < 2 || !mapRef.current) return;
-    const { latitude, longitude, latitudeDelta, longitudeDelta } =
-      getRegionFromCoordinates(coords);
-    mapRef.current.animateToRegion(
-      { latitude, longitude, latitudeDelta, longitudeDelta },
-      1000
-    );
-  }, []);
-
-  // Calculate bounding region from coordinates
-  const getRegionFromCoordinates = (coords: Coordinate[]) => {
-    if (coords.length === 0) {
-      return {
-        latitude: 9.082, // Default: Abuja center
-        longitude: 7.3986,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
-    }
-
-    const lats = coords.map((c) => c.latitude);
-    const lngs = coords.map((c) => c.longitude);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-
-    return {
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: Math.max((maxLat - minLat) * 1.3, 0.005),
-      longitudeDelta: Math.max((maxLng - minLng) * 1.3, 0.005),
-    };
   };
 
   // Haversine distance between two points (km)
@@ -390,79 +347,36 @@ export default function BoundaryMapScreen() {
       })()
     : [];
 
-  // Map region
-  const region = coordinates.length >= 2
-    ? getRegionFromCoordinates(coordinates)
-    : {
-        latitude: 9.082, // Abuja
-        longitude: 7.3986,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      };
+  // Map center from existing boundary or default to Abuja
+  const mapCenter = existingBoundary && existingBoundary.length >= 2
+    ? {
+        latitude: (Math.min(...existingBoundary.map(c => c.latitude)) + Math.max(...existingBoundary.map(c => c.latitude))) / 2,
+        longitude: (Math.min(...existingBoundary.map(c => c.longitude)) + Math.max(...existingBoundary.map(c => c.longitude))) / 2,
+      }
+    : { latitude: 9.082, longitude: 7.3986 }; // Abuja
 
-  // Polygon coordinate array (remove the closing duplicate for rendering)
-  const renderCoordinates =
-    coordinates.length >= 3
-      ? coordinates.slice(0, -1) // Remove duplicate closing point for render
-      : coordinates;
+  // Boundary coordinates for rendering (without closing point)
+  const boundaryCoords = coordinates.length >= 3
+    ? coordinates.slice(0, -1) // Remove duplicate closing point for render
+    : coordinates;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={region}
-        region={region}
+      <FarmMap
+        center={mapCenter}
+        zoom={15}
+        polygonCoordinates={boundaryCoords}
+        polylineCoordinates={coordinates}
+        markers={coordinates.map((coord, i) => ({
+          coordinate: coord,
+          color: i === 0 && coordinates.length >= 3 ? colors.success : colors.primary,
+        }))}
         onPress={handleMapPress}
-        showsUserLocation={tracking}
-        followsUserLocation={tracking}
-        mapType={mode === 'walk' ? 'satellite' : 'standard'}
-      >
-        {/* Boundary polygon */}
-        {renderCoordinates.length >= 3 && (
-          <Polygon
-            coordinates={renderCoordinates}
-            fillColor="rgba(26, 86, 50, 0.3)"
-            strokeColor={colors.primary}
-            strokeWidth={2}
-          />
-        )}
-
-        {/* Road lines between points */}
-        {coordinates.length >= 2 && (
-          <Polyline
-            coordinates={coordinates}
-            strokeColor={mode === 'walk' ? '#ff6b35' : colors.primary}
-            strokeWidth={2}
-          />
-        )}
-
-        {/* GPS dot */}
-        {livePosition && (
-          <Marker
-            coordinate={livePosition}
-            title="You"
-            pinColor="#ff6b35"
-          />
-        )}
-
-        {/* Boundary pins */}
-        {coordinates.map((coord, i) => (
-          <Marker
-            key={i}
-            coordinate={coord}
-            pinColor={i === 0 && coordinates.length >= 3 ? colors.success : colors.primary}
-            title={
-              i === 0
-                ? 'Start'
-                : i === coordinates.length - 1 && coordinates.length > 3
-                ? 'Close'
-                : undefined
-            }
-          />
-        ))}
-      </MapView>
+        showUserLocation={tracking}
+        userLocation={livePosition}
+        styleURL={mode === 'walk' ? 'satellite' : 'streets'}
+      />
 
       {/* Offline indicator */}
       {!isConnected && (
