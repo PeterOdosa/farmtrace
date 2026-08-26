@@ -44,6 +44,7 @@ export default function BoundaryMapScreen() {
   );
   const [mode, setMode] = useState<BoundaryMode>('pin');
   const [tracking, setTracking] = useState(false);
+  const [pinModeActive, setPinModeActive] = useState(false);
   const [livePosition, setLivePosition] = useState<Coordinate | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -148,21 +149,124 @@ export default function BoundaryMapScreen() {
     }
   }, [coordinates]);
 
-  // Pin mode: tap on map to add point
-  const handleMapPress = (coord: Coordinate) => {
-    if (mode !== 'pin' || tracking) return;
-    const newCoord: Coordinate = coord;
-    setCoordinates((prev) => [...prev, newCoord]);
+  // Pin mode: start GPS tracking and show "Take Point" button
+  const startPinTracking = async () => {
+    if (!permissionsGranted) {
+      Alert.alert('Permission Required', 'Please grant location access first.');
+      return;
+    }
+
+    if (coordinates.length > 0) {
+      Alert.alert(
+        'Clear Points',
+        'Starting pin mode will clear current points. Continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Start',
+            onPress: () => {
+              setCoordinates([]);
+              beginPinTracking();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    beginPinTracking();
+  };
+
+  const beginPinTracking = async () => {
+    setPinModeActive(true);
+    setMode('pin');
+    setTracking(true);
+
+    // Get initial position immediately
+    const initialPosition = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.BestForNavigation,
+    });
+    if (initialPosition) {
+      const initialCoord: Coordinate = {
+        latitude: initialPosition.coords.latitude,
+        longitude: initialPosition.coords.longitude,
+      };
+      setLivePosition(initialCoord);
+    }
+
+    // Start continuous GPS tracking
+    const subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1000,
+        distanceInterval: 0,
+      },
+      (location) => {
+        const { latitude, longitude } = location.coords;
+        setLivePosition({ latitude, longitude });
+      }
+    );
+    watchSubscriptionRef.current = subscription;
+  };
+
+  // Pin mode: capture current GPS position (not map tap)
+  const handleTakePoint = () => {
+    if (!livePosition) {
+      Alert.alert('GPS Not Ready', 'Waiting for GPS signal... Please wait a moment and try again.');
+      return;
+    }
+    // Add current GPS position as a point
+    setCoordinates((prev) => [...prev, { ...livePosition }]);
   };
 
   // Pin mode: remove last point
   const handleUndo = () => {
-    if (tracking) return;
     setCoordinates((prev) => prev.slice(0, -1));
+  };
+
+  // Pin mode: finish tracking
+  const handleFinishPin = () => {
+    if (coordinates.length < 3) {
+      Alert.alert('Not Enough Points', 'You need at least 3 points to form a polygon.');
+      return;
+    }
+    Alert.alert(
+      'Finish Pin Mode',
+      `Captured ${coordinates.length} boundary points. Close the polygon and finish?`,
+      [
+        { text: 'Continue', style: 'cancel' },
+        {
+          text: 'Close & Finish',
+          onPress: () => {
+            stopPinTracking();
+            // Close the polygon by adding the first point at the end
+            if (coordinates.length > 0) {
+              setCoordinates((prev) => [...prev, prev[0]]);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Stop pin tracking
+  const stopPinTracking = () => {
+    if (watchSubscriptionRef.current) {
+      watchSubscriptionRef.current.remove();
+      watchSubscriptionRef.current = null;
+    }
+    setPinModeActive(false);
+    setTracking(false);
+    setLivePosition(null);
   };
 
   // Start GPS walk tracking
   const startWalkTracking = async () => {
+    if (pinModeActive) {
+      Alert.alert('Stop Pin Mode', 'Stop pin mode tracking first to switch to walk mode.');
+      return;
+    }
+
     if (!permissionsGranted) {
       Alert.alert('Permission Required', 'Please grant location access first.');
       return;
@@ -178,7 +282,7 @@ export default function BoundaryMapScreen() {
             text: 'Start',
             onPress: () => {
               setCoordinates([]);
-              beginTracking();
+              beginWalkTracking();
             },
           },
         ]
@@ -186,10 +290,10 @@ export default function BoundaryMapScreen() {
       return;
     }
 
-    beginTracking();
+    beginWalkTracking();
   };
 
-  const beginTracking = async () => {
+  const beginWalkTracking = async () => {
     setMode('walk');
     setTracking(true);
 
@@ -346,13 +450,15 @@ export default function BoundaryMapScreen() {
       })()
     : [];
 
-  // Map center from existing boundary or default to Abuja
-  const mapCenter = existingBoundary && existingBoundary.length >= 2
-    ? {
-        latitude: (Math.min(...existingBoundary.map(c => c.latitude)) + Math.max(...existingBoundary.map(c => c.latitude))) / 2,
-        longitude: (Math.min(...existingBoundary.map(c => c.longitude)) + Math.max(...existingBoundary.map(c => c.longitude))) / 2,
-      }
-    : { latitude: 9.082, longitude: 7.3986 }; // Abuja
+  // Map center from live position, existing boundary, or default
+  const mapCenter = livePosition
+    ? livePosition
+    : existingBoundary && existingBoundary.length >= 2
+      ? {
+          latitude: (Math.min(...existingBoundary.map(c => c.latitude)) + Math.max(...existingBoundary.map(c => c.latitude))) / 2,
+          longitude: (Math.min(...existingBoundary.map(c => c.longitude)) + Math.max(...existingBoundary.map(c => c.longitude))) / 2,
+        }
+      : { latitude: 9.082, longitude: 7.3986 }; // Abuja
 
   // Boundary coordinates for rendering (without closing point)
   const boundaryCoords = coordinates.length >= 3
@@ -370,9 +476,9 @@ export default function BoundaryMapScreen() {
         markers={coordinates.map((coord, i) => ({
           coordinate: coord,
           color: i === 0 && coordinates.length >= 3 ? colors.success : colors.primary,
+          title: `Pin ${i + 1}`,
         }))}
-        onPress={handleMapPress}
-        showUserLocation={tracking}
+        showUserLocation={pinModeActive || mode === 'walk'}
         userLocation={livePosition}
         styleURL={mode === 'walk' ? 'satellite' : 'streets'}
       />
@@ -395,13 +501,18 @@ export default function BoundaryMapScreen() {
         <TouchableOpacity
           style={[
             styles.modeButton,
-            mode === 'pin' && styles.modeButtonActive,
+            (mode === 'pin' && !pinModeActive) && styles.modeButtonActive,
           ]}
           onPress={() => {
             if (mode === 'walk' && tracking) {
               Alert.alert('Stop Tracking', 'Stop walk tracking to switch modes.', [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Stop', onPress: () => { stopWalkTracking(); setMode('pin'); } },
+              ]);
+            } else if (pinModeActive) {
+              Alert.alert('Stop Tracking', 'Stop pin mode tracking first.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Stop', onPress: () => { stopPinTracking(); setMode('pin'); } },
               ]);
             } else {
               setMode('pin');
@@ -411,7 +522,7 @@ export default function BoundaryMapScreen() {
           <Text
             style={[
               styles.modeButtonText,
-              mode === 'pin' && styles.modeButtonTextActive,
+              (mode === 'pin' && !pinModeActive) && styles.modeButtonTextActive,
             ]}
           >
             📍 Pin Mode
@@ -436,8 +547,59 @@ export default function BoundaryMapScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Tracking status */}
-      {tracking && (
+      {/* Pin Mode Controls */}
+      {pinModeActive && (
+        <View style={styles.pinModeControls}>
+          {/* Pin counter */}
+          <View style={styles.pinCounter}>
+            <Text style={styles.pinCounterText}>
+              {coordinates.length} point{coordinates.length !== 1 ? 's' : ''}
+            </Text>
+          </View>
+
+          {/* Take Point button */}
+          <TouchableOpacity
+            style={[styles.takePointButton, !livePosition && styles.takePointButtonDisabled]}
+            onPress={handleTakePoint}
+            disabled={!livePosition}
+          >
+            {livePosition ? (
+              <Text style={styles.takePointText}>📍 Take Point</Text>
+            ) : (
+              <ActivityIndicator color="#fff" />
+            )}
+          </TouchableOpacity>
+
+          {/* Undo and Finish buttons */}
+          <View style={styles.pinActionButtons}>
+            <TouchableOpacity
+              style={styles.undoButton}
+              onPress={handleUndo}
+              disabled={coordinates.length === 0}
+            >
+              <Text style={styles.undoText}>↩ Undo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.finishButton, coordinates.length < 3 && styles.finishButtonDisabled]}
+              onPress={handleFinishPin}
+              disabled={coordinates.length < 3}
+            >
+              <Text style={styles.finishText}>✓ Finish</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.stopButton}
+              onPress={stopPinTracking}
+            >
+              <Text style={styles.stopButtonText}>⏹ Stop</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Tracking status (walk mode) */}
+      {tracking && mode === 'walk' && (
         <View style={styles.trackingBanner}>
           <ActivityIndicator size="small" color="#fff" />
           <Text style={styles.trackingText}>Recording GPS...</Text>
@@ -453,8 +615,18 @@ export default function BoundaryMapScreen() {
         </View>
       )}
 
+      {/* Start Pin Mode prompt */}
+      {mode === 'pin' && !pinModeActive && !tracking && (
+        <View style={styles.startPrompt}>
+          <Text style={styles.startPromptText}>Tap "Take Point" button to capture GPS points</Text>
+          <TouchableOpacity style={styles.startButton} onPress={startPinTracking}>
+            <Text style={styles.startButtonText}>▶ Start Pin Mode</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Measurements panel */}
-      {coordinates.length >= 3 && (
+      {coordinates.length >= 3 && !pinModeActive && (
         <View style={styles.measurementsPanel}>
           <View style={styles.measurementRow}>
             <Text style={styles.measurementValue}>
@@ -623,6 +795,71 @@ const styles = StyleSheet.create({
   modeButtonTextActive: {
     color: '#fff',
   },
+  // Pin Mode Controls
+  pinModeControls: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+    gap: 12,
+  },
+  pinCounter: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  pinCounterText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  takePointButton: {
+    backgroundColor: colors.success,
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  takePointButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  takePointText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  pinActionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  finishButton: {
+    flex: 1,
+    backgroundColor: colors.success,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  finishButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  finishText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  // Tracking status
   trackingBanner: {
     position: 'absolute',
     top: 80,
@@ -657,6 +894,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
+  // Start prompt
+  startPrompt: {
+    position: 'absolute',
+    bottom: 100,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 15,
+  },
+  startPromptText: {
+    fontSize: 14,
+    color: colors.textLight,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  startButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+  },
+  startButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  // Measurements panel
   measurementsPanel: {
     position: 'absolute',
     bottom: 80,
@@ -697,6 +969,7 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontWeight: '600',
   },
+  // Save button
   saveContainer: {
     position: 'absolute',
     bottom: 16,
@@ -719,6 +992,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  // Side lengths
   sideLengthsPanel: {
     position: 'absolute',
     bottom: 140,
@@ -746,6 +1020,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: '600',
   },
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
