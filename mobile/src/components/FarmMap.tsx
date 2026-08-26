@@ -1,14 +1,8 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, UIManager, Platform } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import { TILE_STYLES } from '../lib/mapTiles';
-
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android') {
-  if (UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  }
-}
 
 interface Coordinate {
   latitude: number;
@@ -46,33 +40,74 @@ export default function FarmMap({
 }: FarmMapProps) {
   const mapRef = useRef<any>(null);
   const [mapLayout, setMapLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
-
   const centerCoord = [center.longitude, center.latitude] as [number, number];
 
-  const handleMapPress = useCallback((e: any) => {
-    if (!onPress || !mapRef.current) return;
-    const { pageX, pageY } = e.nativeEvent;
+  // Convert screen pixel coordinates to geographic coordinates
+  const screenToCoordinate = useCallback((screenX: number, screenY: number): Coordinate | null => {
     try {
-      const point = { x: pageX - mapLayout.x, y: pageY - mapLayout.y };
-      const coord = mapRef.current.coordinateForPoint(point);
-      if (coord) {
-        onPress(coord);
+      const map = mapRef.current;
+      if (!map) return null;
+
+      // @maplibre/maplibre-react-native exposes coordinateForPoint on the nativeRef
+      const nativeRef = (map as any).nativeRef;
+      if (nativeRef && typeof nativeRef.coordinateForPoint === 'function') {
+        const point = nativeRef.coordinateForPoint({ x: screenX, y: screenY });
+        if (point) {
+          return { latitude: point.latitude, longitude: point.longitude };
+        }
+      }
+
+      // Fallback: try accessing through the internal map object
+      const mapboxMap = (map as any)._map;
+      if (mapboxMap && typeof mapboxMap.pointToLocation === 'function') {
+        // Some versions use pointToLocation(x, y) -> [lng, lat]
+        const result = mapboxMap.pointToLocation(screenX, screenY);
+        if (result) {
+          return { latitude: result[1], longitude: result[0] };
+        }
       }
     } catch (err) {
-      console.warn('[FarmMap] coordinateForPoint failed:', err);
+      console.warn('[FarmMap] coordinate conversion failed:', err);
+    }
+    return null;
+  }, []);
+
+  // Handle tap on empty map space (overlay)
+  const handleOverlayPress = useCallback((e: any) => {
+    if (!onPress) return;
+    const { pageX, pageY } = e.nativeEvent;
+    // Convert page coordinates to map-relative coordinates
+    const mapX = pageX - mapLayout.x;
+    const mapY = pageY - mapLayout.y;
+
+    const coord = screenToCoordinate(mapX, mapY);
+    if (coord) {
+      onPress(coord);
+    } else {
+      // Ultimate fallback: center of map
       onPress(center);
     }
-  }, [onPress, mapLayout, center]);
+  }, [onPress, mapLayout, center, screenToCoordinate]);
+
+  // Handle tap on map features (MapView onPress)
+  const handleMapPress = (feature: any) => {
+    if (!onPress) return;
+    // MapLibre React Native onPress passes a GeoJSON.Feature
+    const coords = feature?.geometry?.coordinates;
+    if (coords && Array.isArray(coords) && coords.length >= 2) {
+      onPress({ latitude: coords[1] as number, longitude: coords[0] as number });
+    }
+  };
 
   return (
     <View style={styles.container} onLayout={(e) => setMapLayout(e.nativeEvent.layout)}>
-      {/* Transparent overlay for tap handling */}
+      {/* Transparent overlay — captures taps on empty map space where
+          MapView.onPress doesn't fire (no feature to tap) */}
       {onPress && (
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
-          onPress={handleMapPress}
-          pointerEvents="box-none"
+          onPress={handleOverlayPress}
         />
       )}
 
@@ -80,6 +115,7 @@ export default function FarmMap({
         ref={mapRef}
         style={styles.map}
         mapStyle={TILE_STYLES[styleURL]}
+        onPress={handleMapPress}
       >
         <MapLibreGL.Camera
           centerCoordinate={centerCoord}
