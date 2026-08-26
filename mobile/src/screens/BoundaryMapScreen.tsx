@@ -480,6 +480,7 @@ export default function BoundaryMapScreen() {
         }))}
         showUserLocation={pinModeActive || mode === 'walk'}
         userLocation={livePosition}
+        cameraFollow={livePosition}
         styleURL={mode === 'walk' ? 'satellite' : 'streets'}
       />
 

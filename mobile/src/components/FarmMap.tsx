@@ -1,5 +1,5 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { View, StyleSheet, Platform, GestureResponderEvent } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import { TILE_STYLES } from '../lib/mapTiles';
@@ -24,6 +24,7 @@ interface FarmMapProps {
     color?: string;
     width?: number;
   }>;
+  cameraFollow?: Coordinate | null;
 }
 
 export default function FarmMap({
@@ -37,10 +38,22 @@ export default function FarmMap({
   userLocation,
   styleURL = 'streets',
   polylines,
+  cameraFollow,
 }: FarmMapProps) {
   const mapRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
   const [mapLayout, setMapLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const centerCoord = [center.longitude, center.latitude] as [number, number];
+
+  // Live camera flyTo when cameraFollow changes
+  useEffect(() => {
+    if (cameraFollow && cameraRef.current) {
+      cameraRef.current.jumpTo({
+        centerCoordinate: [cameraFollow.longitude, cameraFollow.latitude] as [number, number],
+        zoomLevel: zoom,
+      });
+    }
+  }, [cameraFollow, zoom]);
 
   // Convert screen pixel coordinates to geographic coordinates
   const screenToCoordinate = useCallback((screenX: number, screenY: number): Coordinate | null => {
@@ -73,7 +86,7 @@ export default function FarmMap({
   }, []);
 
   // Handle tap on empty map space (overlay)
-  const handleOverlayPress = useCallback((e: any) => {
+  const handleOverlayPress = useCallback((e: GestureResponderEvent) => {
     if (!onPress) return;
     const { pageX, pageY } = e.nativeEvent;
     // Convert page coordinates to map-relative coordinates
@@ -99,6 +112,17 @@ export default function FarmMap({
     }
   };
 
+  // Close polygon ring if not already closed
+  const getClosedPolygonRing = (coords: Coordinate[]): Coordinate[] => {
+    if (coords.length < 2) return coords;
+    const first = coords[0];
+    const last = coords[coords.length - 1];
+    if (first.latitude === last.latitude && first.longitude === last.longitude) {
+      return coords; // Already closed
+    }
+    return [...coords, { ...first }]; // Close the ring
+  };
+
   return (
     <View style={styles.container} onLayout={(e) => setMapLayout(e.nativeEvent.layout)}>
       {/* Transparent overlay — captures taps on empty map space where
@@ -118,6 +142,7 @@ export default function FarmMap({
         onPress={handleMapPress}
       >
         <MapLibreGL.Camera
+          ref={cameraRef}
           centerCoordinate={centerCoord}
           zoomLevel={zoom}
           animationMode="flyTo"
@@ -133,7 +158,7 @@ export default function FarmMap({
               geometry: {
                 type: 'Polygon',
                 coordinates: [
-                  polygonCoordinates.map((c) => [c.longitude, c.latitude]),
+                  getClosedPolygonRing(polygonCoordinates).map((c) => [c.longitude, c.latitude]),
                 ],
               },
               properties: {},
@@ -142,15 +167,15 @@ export default function FarmMap({
             <MapLibreGL.FillLayer
               id="farmBoundaryFill"
               style={{
-                fillColor: '#1a5632',
-                fillOpacity: 0.3,
+                fillColor: '#2d7a4f',
+                fillOpacity: 0.25,
               }}
             />
             <MapLibreGL.LineLayer
               id="farmBoundaryOutline"
               style={{
-                lineColor: '#1a4d2e',
-                lineWidth: 2,
+                lineColor: '#c8a96e',
+                lineWidth: 2.5,
               }}
             />
           </MapLibreGL.ShapeSource>
@@ -236,7 +261,7 @@ export default function FarmMap({
           </MapLibreGL.PointAnnotation>
         ))}
 
-        {/* Live user position */}
+        {/* Live user position — green pulsing dot */}
         {showUserLocation && userLocation && (
           <MapLibreGL.PointAnnotation
             id="livePosition"
@@ -247,7 +272,7 @@ export default function FarmMap({
                 width: 20,
                 height: 20,
                 borderRadius: 10,
-                backgroundColor: '#ff6b35',
+                backgroundColor: '#4CAF50',
                 borderWidth: 3,
                 borderColor: '#fff',
               }}
