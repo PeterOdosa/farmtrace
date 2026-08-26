@@ -149,10 +149,9 @@ export default function BoundaryMapScreen() {
   }, [coordinates]);
 
   // Pin mode: tap on map to add point
-  const handleMapPress = (e: any) => {
+  const handleMapPress = (coord: Coordinate) => {
     if (mode !== 'pin' || tracking) return;
-    const { latitude, longitude } = e.nativeEvent.coordinate;
-    const newCoord: Coordinate = { latitude, longitude };
+    const newCoord: Coordinate = coord;
     setCoordinates((prev) => [...prev, newCoord]);
   };
 

@@ -54,9 +54,12 @@ export async function getFarms() {
 }
 
 export async function createFarm(name: string, crop_type: string, boundary: any) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
   const { data, error } = await supabase
     .from('farms')
-    .insert({ name, crop_type, boundary })
+    .insert({ name, owner_id: user.id, crop_type, boundary })
     .select()
     .single();
 
