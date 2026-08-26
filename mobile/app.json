@@ -21,6 +21,10 @@
       "bundleIdentifier": "com.farmtrace.mobile"
     },
     "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a5632"
@@ -31,9 +35,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      [
-        "@maplibre/maplibre-react-native"
-      ]
+      "@maplibre/maplibre-react-native",
+      "expo-location"
     ],
     "extra": {
       "eas": {

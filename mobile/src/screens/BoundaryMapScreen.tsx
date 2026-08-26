@@ -178,35 +178,43 @@ export default function BoundaryMapScreen() {
   };
 
   const beginPinTracking = async () => {
-    setPinModeActive(true);
-    setMode('pin');
-    setTracking(true);
+    try {
+      setPinModeActive(true);
+      setMode('pin');
+      setTracking(true);
 
-    // Get initial position immediately
-    const initialPosition = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.BestForNavigation,
-    });
-    if (initialPosition) {
-      const initialCoord: Coordinate = {
-        latitude: initialPosition.coords.latitude,
-        longitude: initialPosition.coords.longitude,
-      };
-      setLivePosition(initialCoord);
-    }
-
-    // Start continuous GPS tracking
-    const subscription = await Location.watchPositionAsync(
-      {
+      // Get initial position immediately
+      const initialPosition = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 1000,
-        distanceInterval: 0,
-      },
-      (location) => {
-        const { latitude, longitude } = location.coords;
-        setLivePosition({ latitude, longitude });
+      });
+      
+      if (initialPosition) {
+        const initialCoord: Coordinate = {
+          latitude: initialPosition.coords.latitude,
+          longitude: initialPosition.coords.longitude,
+        };
+        setLivePosition(initialCoord);
       }
-    );
-    watchSubscriptionRef.current = subscription;
+
+      // Start continuous GPS tracking
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1000,
+          distanceInterval: 0,
+        },
+        (location) => {
+          const { latitude, longitude } = location.coords;
+          setLivePosition({ latitude, longitude });
+        }
+      );
+      watchSubscriptionRef.current = subscription;
+    } catch (err: any) {
+      console.error('[PinMode] GPS error:', err);
+      Alert.alert('GPS Error', err.message || 'Could not access location. Check permissions and try again.');
+      setPinModeActive(false);
+      setTracking(false);
+    }
   };
 
   // Pin mode: capture current GPS position (not map tap)
