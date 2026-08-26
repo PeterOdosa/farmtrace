@@ -11,7 +11,7 @@
       "env": {
         "EXPO_PUBLIC_STADIA_API_KEY": "18c84f...b7",
         "EXPO_PUBLIC_SUPABASE_URL": "https://ycvcfvnyoqcoziddcbrx.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbG...cXGc"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljdmNmdm55b3Fjb3ppZGRjYnJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NjM0MzUsImV4cCI6MjEwMTQzOTQzNX0.HM8UneqhC9QUfIL-orTaacJhVMQVeTZNDC2otlAcXGc"
       }
     },
     "production": {

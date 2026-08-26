@@ -34,6 +34,12 @@
       [
         "@maplibre/maplibre-react-native"
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "09c9a422-504c-447b-9951-6a6f5ce7d5eb"
+      }
+    },
+    "owner": "peterodosa"
   }
 }

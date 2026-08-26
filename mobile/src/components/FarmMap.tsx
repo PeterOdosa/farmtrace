@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, Text, Alert } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import { STADIA_API_KEY, TILE_STYLES } from '../lib/mapTiles';
+import { TILE_STYLES } from '../lib/mapTiles';
 
 interface Coordinate {
   latitude: number;
@@ -37,36 +37,16 @@ export default function FarmMap({
   styleURL = 'streets',
   polylines,
 }: FarmMapProps) {
-  const [apiKeyReady, setApiKeyReady] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
-
-  useEffect(() => {
-    const key = STADIA_API_KEY;
-    if (key && key !== 'your-s...') {
-      setApiKeyReady(true);
-    }
-  }, []);
-
-  if (!apiKeyReady) {
-    return (
-      <View style={[styles.map, styles.placeholder]}>
-        <View style={styles.placeholderContent}>
-          <Text style={styles.placeholderTitle}>MapLibre — Setup Required</Text>
-          <Text style={styles.placeholderText}>
-            Add <Text style={styles.placeholderKey}>EXPO_PUBLIC_STADIA_API_KEY</Text> to mobile/.env
-          </Text>
-        </View>
-      </View>
-    );
-  }
+  const mapRef = useRef<any>(null);
 
   const centerCoord = [center.longitude, center.latitude] as [number, number];
 
   return (
     <MapLibreGL.MapView
+      ref={mapRef}
       style={styles.map}
-      styleURL={TILE_STYLES[styleURL]}
-      onMapReady={() => setMapReady(true)}
+      mapStyle={TILE_STYLES[styleURL]}
+      onPress={onPress}
     >
       <MapLibreGL.Camera
         centerCoordinate={centerCoord}
@@ -212,29 +192,5 @@ export default function FarmMap({
 const styles = StyleSheet.create({
   map: {
     flex: 1,
-  },
-  placeholder: {
-    backgroundColor: '#f0f0f0',
-  },
-  placeholderContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  placeholderTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1a5632',
-    marginBottom: 8,
-  },
-  placeholderText: {
-    fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
-  },
-  placeholderKey: {
-    fontWeight: 'bold',
-    color: '#1a5632',
   },
 });
