@@ -4,7 +4,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { supabase, Farm, FarmPlan } from "../lib/supabase";
 import { TILE_STYLES, STADIA_API_KEY } from "../config/env";
-import { getFarm, getPlan, updatePlanElements } from "../services/api";
+import { getFarm, getPlan, updatePlanElements, updatePlanMetadata } from "../services/api";
 
 // ─── Font loader ──────────────────────────────────────────────────────────────
 function FontLoader() {
@@ -27,7 +27,7 @@ interface PlanElement {
   type: ElementType;
   label: string;
   color: string;
-  geometry: any; // GeoJSON geometry
+  geometry: any;
 }
 
 // ─── Element color presets ────────────────────────────────────────────────────
@@ -72,6 +72,13 @@ const toolLabels: Record<ElementType, string> = {
   marker: "Place Marker",
 };
 
+// ─── Status helpers ───────────────────────────────────────────────────────────
+const statusConfig = {
+  draft: { color: "bg-gray-100 text-gray-600", label: "Draft" },
+  active: { color: "bg-green-100 text-green-700", label: "Active" },
+  completed: { color: "bg-amber-100 text-amber-700", label: "Completed" },
+};
+
 // ─── Plan Editor ──────────────────────────────────────────────────────────────
 export default function PlanEditor() {
   const { farmId, planId } = useParams<{ farmId: string; planId: string }>();
@@ -79,6 +86,7 @@ export default function PlanEditor() {
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const mapLoaded = useRef(false);
 
   const [farm, setFarm] = useState<Farm | null>(null);
   const [plan, setPlan] = useState<FarmPlan | null>(null);
@@ -90,7 +98,7 @@ export default function PlanEditor() {
 
   // Drawing state
   const [tool, setTool] = useState<ElementType | null>(null);
-  const [drawingCoords, setDrawingCoords] = useState<number[][]>([]); // current vertex positions
+  const [drawingCoords, setDrawingCoords] = useState<number[][]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [hoverElementId, setHoverElementId] = useState<string | null>(null);
 
@@ -98,6 +106,17 @@ export default function PlanEditor() {
   const [editLabel, setEditLabel] = useState("");
   const [editColor, setEditColor] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Layer visibility toggles
+  const [layerVisibility, setLayerVisibility] = useState({
+    zones: true,
+    paths: true,
+    markers: true,
+  });
+
+  // Plan metadata editing
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState("");
 
   // ── Load farm + plan ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -110,8 +129,8 @@ export default function PlanEditor() {
         ]);
         setFarm(farmData);
         setPlan(planData);
-        // Load existing elements from plan
-        if (planData.elements && Array.isArray(planData.elements)) {
+        setTitleValue(planData.title);
+        if (planData.elements && Array.isArray(planData.elements) && planData.elements.length > 0) {
           setElements(planData.elements.map((el: any) => ({
             id: el.id || crypto.randomUUID(),
             type: el.type as ElementType,
@@ -150,74 +169,72 @@ export default function PlanEditor() {
 
     map.current.addControl(new maplibregl.NavigationControl(), "top-left");
 
-    map.current.on("load", () => {
-      // Add boundary layer
+    const m = map.current;
+
+    m.on("load", () => {
+      mapLoaded.current = true;
+
       if (farm.boundary) {
-        (map.current as any).addSource("farm-boundary", {
+        (m as any).addSource("farm-boundary", {
           type: "geojson",
           data: { type: "Feature", geometry: farm.boundary },
         });
 
-        map.current.addLayer({
+        m.addLayer({
           id: "farm-boundary-fill",
           type: "fill",
           source: "farm-boundary",
           paint: { "fill-color": "#2d7a4f", "fill-opacity": 0.15 },
         });
 
-        map.current.addLayer({
+        m.addLayer({
           id: "farm-boundary-line",
           type: "line",
           source: "farm-boundary",
           paint: { "line-color": "#1a4d2e", "line-width": 3, "line-opacity": 0.8 },
         });
-      }
 
-      // Add existing plan elements
-      elements.forEach((el) => addElementToMap(el, false));
-
-      // Fit to boundary or default
-      if (farm.boundary) {
         const bounds = new maplibregl.LngLatBounds();
         const coords = farm.boundary.coordinates;
         const flatten = (ring: number[][]) => ring.forEach(([lng, lat]) => bounds.extend([lng, lat]));
         if (farm.boundary.type === "Polygon") flatten(coords[0] || []);
         else coords.forEach((poly: number[][][]) => poly.forEach(flatten));
-        if (!bounds.isEmpty()) map.current?.fitBounds(bounds, { padding: 80, maxZoom: 18 });
+        if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 80, maxZoom: 18 });
       }
     });
-  }, [farm, elements.length]); // Re-init only when element count changes (for now)
+  }, [farm]);
 
   // ── Add element to map ───────────────────────────────────────────────────
-  const addElementToMap = useCallback((el: PlanElement, animate = true) => {
-    if (!map.current || !farm) return;
+  const addElementToMap = useCallback((el: PlanElement) => {
+    const m = map.current;
+    if (!m || !mapLoaded.current) return;
 
     const sourceId = `element-${el.id}`;
     const layerId = `element-fill-${el.id}`;
     const layerIdLine = `element-line-${el.id}`;
     const layerIdPoint = `element-point-${el.id}`;
 
-    // Remove if exists
-    if (map.current.getLayer(layerId)) map.current.removeLayer(layerId);
-    if (map.current.getLayer(layerIdLine)) map.current.removeLayer(layerIdLine);
-    if (map.current.getLayer(layerIdPoint)) map.current.removeLayer(layerIdPoint);
-    if ((map.current as any).getSource(sourceId)) (map.current as any).removeSource(sourceId);
+    if (m.getLayer(layerId)) m.removeLayer(layerId);
+    if (m.getLayer(layerIdLine)) m.removeLayer(layerIdLine);
+    if (m.getLayer(layerIdPoint)) m.removeLayer(layerIdPoint);
+    if ((m as any).getSource(sourceId)) (m as any).removeSource(sourceId);
 
-    // Add source
-    (map.current as any).addSource(sourceId, {
+    const existingMarker = m.getCanvas(`element-marker-${el.id}`);
+    if (existingMarker) existingMarker.remove();
+
+    (m as any).addSource(sourceId, {
       type: "geojson",
       data: { type: "Feature", geometry: el.geometry },
     });
 
-    // Fill layer for zones
     if (el.type === "zone") {
-      map.current.addLayer({
+      m.addLayer({
         id: layerId,
         type: "fill",
         source: sourceId,
         paint: { "fill-color": el.color, "fill-opacity": 0.25 },
       });
-      map.current.addLayer({
+      m.addLayer({
         id: layerIdLine,
         type: "line",
         source: sourceId,
@@ -225,9 +242,8 @@ export default function PlanEditor() {
       });
     }
 
-    // Line layer for paths
     if (el.type === "path") {
-      map.current.addLayer({
+      m.addLayer({
         id: layerIdLine,
         type: "line",
         source: sourceId,
@@ -235,9 +251,8 @@ export default function PlanEditor() {
       });
     }
 
-    // Point layer for markers
     if (el.type === "marker") {
-      map.current.addLayer({
+      m.addLayer({
         id: layerIdPoint,
         type: "circle",
         source: sourceId,
@@ -248,31 +263,25 @@ export default function PlanEditor() {
           "circle-stroke-width": 2,
         },
       });
-      // Add label
       const coords = el.geometry.coordinates;
-      const marker = new maplibregl.Marker({ color: el.color, scale: 0.8 })
+      const markerEl = new maplibregl.Marker({ color: el.color, scale: 0.8 })
         .setLngLat(coords)
         .setPopup(
           new maplibregl.Popup({ offset: 15, closeButton: false })
             .setHTML(`<div style="font-size:12px;font-weight:600;color:#1c1c1a;font-family:sans-serif">${el.label || "Marker"}</div>`)
         )
-        .addTo(map.current!);
+        .addTo(m);
     }
 
-    // Hover handler
-    map.current.on(`mouseenter ${layerId}`, () => setHoverElementId(el.id));
-    map.current.on(`mouseleave ${layerId}`, () => setHoverElementId(null));
-    map.current.on(`click ${layerId}`, () => {
+    m.on(`click ${layerId}`, () => {
       setSelectedElementId(el.id);
       setEditLabel(el.label);
       setEditColor(el.color);
       setSidebarOpen(true);
     });
 
-    if (map.current.on) {
-      map.current.on(`mouseenter ${layerIdLine}`, () => setHoverElementId(el.id));
-      map.current.on(`mouseleave ${layerIdLine}`, () => setHoverElementId(null));
-      map.current.on(`click ${layerIdLine}`, () => {
+    if (m.getLayer(layerIdLine)) {
+      m.on(`click ${layerIdLine}`, () => {
         setSelectedElementId(el.id);
         setEditLabel(el.label);
         setEditColor(el.color);
@@ -280,51 +289,99 @@ export default function PlanEditor() {
       });
     }
 
-    if (map.current.on) {
-      map.current.on(`mouseenter ${layerIdPoint}`, () => setHoverElementId(el.id));
-      map.current.on(`mouseleave ${layerIdPoint}`, () => setHoverElementId(null));
-      map.current.on(`click ${layerIdPoint}`, () => {
+    if (m.getLayer(layerIdPoint)) {
+      m.on(`click ${layerIdPoint}`, () => {
         setSelectedElementId(el.id);
         setEditLabel(el.label);
         setEditColor(el.color);
         setSidebarOpen(true);
       });
     }
-  }, [farm]);
+  }, []);
+
+  // ── Remove element from map ──────────────────────────────────────────────
+  const removeElementFromMap = useCallback((el: PlanElement) => {
+    const m = map.current;
+    if (!m) return;
+
+    const sourceId = `element-${el.id}`;
+    const layerId = `element-fill-${el.id}`;
+    const layerIdLine = `element-line-${el.id}`;
+    const layerIdPoint = `element-point-${el.id}`;
+
+    if (m.getLayer(layerId)) m.removeLayer(layerId);
+    if (m.getLayer(layerIdLine)) m.removeLayer(layerIdLine);
+    if (m.getLayer(layerIdPoint)) m.removeLayer(layerIdPoint);
+    if ((m as any).getSource(sourceId)) (m as any).removeSource(sourceId);
+  }, []);
+
+  // ── Add all elements to map when they change ─────────────────────────────
+  useEffect(() => {
+    elements.forEach((el) => addElementToMap(el));
+  }, [elements, addElementToMap]);
+
+  // ── Toggle layer visibility ──────────────────────────────────────────────
+  const handleToggleLayer = (layer: keyof typeof layerVisibility) => {
+    setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }));
+
+    const m = map.current;
+    if (!m) return;
+
+    const isOn = layerVisibility[layer];
+    const elementElements = elements.filter((el) =>
+      layer === "zones" ? el.type === "zone" :
+      layer === "paths" ? el.type === "path" :
+      el.type === "marker"
+    );
+
+    elementElements.forEach((el) => {
+      const layerId = `element-fill-${el.id}`;
+      const layerIdLine = `element-line-${el.id}`;
+      const layerIdPoint = `element-point-${el.id}`;
+
+      if (el.type === "zone") {
+        if (m.getLayer(layerId)) m.setLayoutProperty(layerId, "visibility", isOn ? "visible" : "none");
+        if (m.getLayer(layerIdLine)) m.setLayoutProperty(layerIdLine, "visibility", isOn ? "visible" : "none");
+      } else if (el.type === "path") {
+        if (m.getLayer(layerIdLine)) m.setLayoutProperty(layerIdLine, "visibility", isOn ? "visible" : "none");
+      } else if (el.type === "marker") {
+        if (m.getLayer(layerIdPoint)) m.setLayoutProperty(layerIdPoint, "visibility", isOn ? "visible" : "none");
+      }
+    });
+  };
 
   // ── Draw preview layer ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!map.current) return;
+    const m = map.current;
+    if (!m) return;
     const previewId = "draw-preview";
     const previewFillId = "draw-preview-fill";
     const previewPointId = "draw-preview-point";
 
-    // Remove old preview
-    if (map.current.getLayer(previewFillId)) map.current.removeLayer(previewFillId);
-    if (map.current.getLayer(previewId)) map.current.removeLayer(previewId);
-    if (map.current.getLayer(previewPointId)) map.current.removeLayer(previewPointId);
-    if ((map.current as any).getSource(previewId)) (map.current as any).removeSource(previewId);
+    if (m.getLayer(previewFillId)) m.removeLayer(previewFillId);
+    if (m.getLayer(previewId)) m.removeLayer(previewId);
+    if (m.getLayer(previewPointId)) m.removeLayer(previewPointId);
+    if ((m as any).getSource(previewId)) (m as any).removeSource(previewId);
 
     if (drawingCoords.length === 0) return;
 
-    (map.current as any).addSource(previewId, {
+    (m as any).addSource(previewId, {
       type: "geojson",
       data: { type: "Feature", geometry: null as any },
     });
 
     if (tool === "zone" && drawingCoords.length >= 3) {
-      // Closed ring for zone
       const ring = [...drawingCoords, drawingCoords[0]];
       const feature = { type: "Feature", geometry: { type: "Polygon", coordinates: [ring] } };
-      (map.current as any).getSource(previewId).setData(feature);
+      (m as any).getSource(previewId).setData(feature);
 
-      map.current.addLayer({
+      m.addLayer({
         id: previewFillId,
         type: "fill",
         source: previewId,
         paint: { "fill-color": "#2d7a4f", "fill-opacity": 0.3 },
       });
-      map.current.addLayer({
+      m.addLayer({
         id: previewId,
         type: "line",
         source: previewId,
@@ -332,9 +389,9 @@ export default function PlanEditor() {
       });
     } else if (tool === "path" && drawingCoords.length >= 2) {
       const feature = { type: "Feature", geometry: { type: "LineString", coordinates: drawingCoords } };
-      (map.current as any).getSource(previewId).setData(feature);
+      (m as any).getSource(previewId).setData(feature);
 
-      map.current.addLayer({
+      m.addLayer({
         id: previewId,
         type: "line",
         source: previewId,
@@ -343,9 +400,9 @@ export default function PlanEditor() {
     } else if (tool === "marker" && drawingCoords.length === 1) {
       const coords = drawingCoords[0];
       const feature = { type: "Feature", geometry: { type: "Point", coordinates: coords } };
-      (map.current as any).getSource(previewId).setData(feature);
+      (m as any).getSource(previewId).setData(feature);
 
-      map.current.addLayer({
+      m.addLayer({
         id: previewPointId,
         type: "circle",
         source: previewId,
@@ -361,14 +418,14 @@ export default function PlanEditor() {
 
   // ── Map click handler ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!map.current || !tool) return;
+    const m = map.current;
+    if (!m || !tool) return;
 
     const handler = (e: maplibregl.MapMouseEvent) => {
       const { lng, lat } = e.lngLat;
       const coord: [number, number] = [lng, lat];
 
       if (tool === "marker") {
-        // Finish marker immediately
         const newElement: PlanElement = {
           id: crypto.randomUUID(),
           type: "marker",
@@ -398,19 +455,19 @@ export default function PlanEditor() {
       }
     };
 
-    map.current.on("click", handler);
-    return () => { map.current?.off("click", handler); };
+    m.on("click", handler);
+    return () => { m.off("click", handler); };
   }, [tool, drawingCoords, addElementToMap, elements.length]);
 
   // ── Double-click to finish drawing ───────────────────────────────────────
   useEffect(() => {
-    if (!map.current || !tool) return;
+    const m = map.current;
+    if (!m || !tool) return;
 
     const handler = (e: maplibregl.MapMouseEvent) => {
       if (tool !== "zone" && tool !== "path") return;
       if (drawingCoords.length < (tool === "zone" ? 3 : 2)) return;
 
-      // Finish the drawing
       const newElement: PlanElement = {
         id: crypto.randomUUID(),
         type: tool,
@@ -436,31 +493,28 @@ export default function PlanEditor() {
       addElementToMap(newElement);
     };
 
-    map.current.on("dblclick", handler);
-    return () => { map.current?.off("dblclick", handler); };
+    m.on("dblclick", handler);
+    return () => { m.off("dblclick", handler); };
   }, [drawingCoords, tool, addElementToMap, elements.length]);
 
   // ── Right-click to cancel drawing ────────────────────────────────────────
   useEffect(() => {
-    if (!map.current || !tool) return;
+    const m = map.current;
+    if (!m || !tool) return;
 
     const handler = (e: maplibregl.MapMouseEvent) => {
       e.preventDefault();
-      // Cancel drawing
       setDrawingCoords([]);
       setTool(null);
     };
 
-    map.current.on("contextmenu", handler);
-    return () => { map.current?.off("contextmenu", handler); };
+    m.on("contextmenu", handler);
+    return () => { m.off("contextmenu", handler); };
   }, [tool]);
 
   // ── Save plan ────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!planId || elements.length === 0) {
-      setError("You must draw at least one element before saving.");
-      return;
-    }
+    if (!planId) return;
 
     setSaving(true);
     setError(null);
@@ -476,6 +530,19 @@ export default function PlanEditor() {
     }
   };
 
+  // ── Update plan metadata ─────────────────────────────────────────────────
+  const handleUpdatePlanMetadata = async (updates: { title?: string; status?: string }) => {
+    if (!planId) return;
+
+    try {
+      const updated = await updatePlanMetadata(planId, updates);
+      setPlan(updated);
+      if (updates.title) setTitleValue(updates.title);
+    } catch (err: any) {
+      console.error("Failed to update plan:", err);
+    }
+  };
+
   // ── Delete selected element ──────────────────────────────────────────────
   const handleDeleteElement = () => {
     if (!selectedElementId) return;
@@ -484,16 +551,8 @@ export default function PlanEditor() {
     setEditLabel("");
     setUnsaved(true);
 
-    // Remove from map
-    if (map.current) {
-      const el = elements.find((e) => e.id === selectedElementId);
-      if (el) {
-        if (map.current.getLayer(`element-fill-${el.id}`)) map.current.removeLayer(`element-fill-${el.id}`);
-        if (map.current.getLayer(`element-line-${el.id}`)) map.current.removeLayer(`element-line-${el.id}`);
-        if (map.current.getLayer(`element-point-${el.id}`)) map.current.removeLayer(`element-point-${el.id}`);
-        if ((map.current as any).getSource(`element-${el.id}`)) (map.current as any).removeSource(`element-${el.id}`);
-      }
-    }
+    const el = elements.find((e) => e.id === selectedElementId);
+    if (el) removeElementFromMap(el);
   };
 
   // ── Update selected element properties ───────────────────────────────────
@@ -509,7 +568,7 @@ export default function PlanEditor() {
 
   // ── Cancel / go back ─────────────────────────────────────────────────────
   const handleCancel = () => {
-    if (unsaved) {
+    if (unsaved && elements.length > 0) {
       if (!confirm("You have unsaved changes. Discard them?")) return;
     }
     navigate(`/studio/${farmId}`);
@@ -589,6 +648,17 @@ export default function PlanEditor() {
               {plan?.title || "Plan"} · Drawing mode
             </p>
           </div>
+          {plan && (
+            <select
+              value={plan.status}
+              onChange={(e) => handleUpdatePlanMetadata({ status: e.target.value })}
+              className="text-xs px-2 py-1 rounded bg-[#1a4d2e] border border-[#2d7a4f] text-[#c8a96e] focus:outline-none focus:border-[#c8a96e] cursor-pointer"
+            >
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+            </select>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -656,9 +726,7 @@ export default function PlanEditor() {
 
         {drawingCoords.length > 0 && (
           <button
-            onClick={() => {
-              setDrawingCoords([]);
-            }}
+            onClick={() => setDrawingCoords([])}
             className="ml-2 text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded"
           >
             Clear drawing
@@ -706,6 +774,46 @@ export default function PlanEditor() {
           }`}
         >
           <div className="flex-1 flex flex-col">
+            {/* Layer visibility toggles */}
+            <div className="p-4 border-b border-[#e4e4e0]">
+              <h2 className="text-xs font-semibold text-[#8a8a87] uppercase tracking-wider mb-3">Layers</h2>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layerVisibility.zones}
+                    onChange={() => handleToggleLayer("zones")}
+                    className="w-4 h-4 rounded border-gray-300 text-[#2d7a4f] focus:ring-[#2d7a4f]"
+                  />
+                  <span className="text-xs text-[#1c1c1a]">
+                    Zones ({zoneCount})
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layerVisibility.paths}
+                    onChange={() => handleToggleLayer("paths")}
+                    className="w-4 h-4 rounded border-gray-300 text-[#2d7a4f] focus:ring-[#2d7a4f]"
+                  />
+                  <span className="text-xs text-[#1c1c1a]">
+                    Paths ({pathCount})
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layerVisibility.markers}
+                    onChange={() => handleToggleLayer("markers")}
+                    className="w-4 h-4 rounded border-gray-300 text-[#2d7a4f] focus:ring-[#2d7a4f]"
+                  />
+                  <span className="text-xs text-[#1c1c1a]">
+                    Markers ({markerCount})
+                  </span>
+                </label>
+              </div>
+            </div>
+
             {/* Element list */}
             <div className="p-4 border-b border-[#e4e4e0]">
               <h2 className="text-xs font-semibold text-[#8a8a87] uppercase tracking-wider mb-3">Elements ({elements.length})</h2>
@@ -736,9 +844,6 @@ export default function PlanEditor() {
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-[#1c1c1a] truncate">
-                          {el.type === "zone" && `Zone: `}
-                          {el.type === "path" && `Path: `}
-                          {el.type === "marker" && `Marker: `}
                           {el.label || `Unnamed ${el.type}`}
                         </p>
                         <p className="text-[10px] text-[#8a8a87] capitalize">{el.type}</p>
@@ -747,21 +852,6 @@ export default function PlanEditor() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Element stats */}
-            <div className="p-4 border-b border-[#e4e4e0]">
-              <div className="flex items-center gap-4 text-xs text-[#5a5a57]">
-                <span>
-                  {zoneCount} zone{zoneCount !== 1 ? "s" : ""}
-                </span>
-                <span>
-                  {pathCount} path{pathCount !== 1 ? "s" : ""}
-                </span>
-                <span>
-                  {markerCount} marker{markerCount !== 1 ? "s" : ""}
-                </span>
-              </div>
             </div>
 
             {/* Properties panel */}

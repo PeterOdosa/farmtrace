@@ -4,7 +4,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { supabase, Farm, FarmPlan } from "../lib/supabase";
 import { TILE_STYLES, STADIA_API_KEY } from "../config/env";
-import { getFarm, getFarmPlans, createFarmPlan } from "../services/api";
+import { getFarm, getFarmPlans, createFarmPlan, deletePlan, updatePlanMetadata } from "../services/api";
 
 // ─── Font loader ──────────────────────────────────────────────────────────────
 function FontLoader() {
@@ -67,6 +67,8 @@ export default function Studio() {
   const [plans, setPlans] = useState<FarmPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
+  const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -212,6 +214,32 @@ export default function Studio() {
       setError(err.message || "Failed to create plan.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  // ── Delete plan ──────────────────────────────────────────────────────────
+  const handleDeletePlan = async (planId: string) => {
+    if (!confirm("Are you sure you want to delete this plan? This cannot be undone.")) return;
+    setDeletingPlanId(planId);
+    try {
+      await deletePlan(planId);
+      setPlans((prev) => prev.filter((p) => p.id !== planId));
+    } catch (err: any) {
+      console.error("Failed to delete plan:", err);
+      setError(err.message || "Failed to delete plan.");
+    } finally {
+      setDeletingPlanId(null);
+    }
+  };
+
+  // ── Update plan status ──────────────────────────────────────────────────
+  const handleUpdatePlanStatus = async (planId: string, status: string) => {
+    try {
+      await updatePlanMetadata(planId, { status });
+      setPlans((prev) => prev.map((p) => p.id === planId ? { ...p, status: status as FarmPlan["status"] } : p));
+      setEditingStatusId(null);
+    } catch (err: any) {
+      console.error("Failed to update plan status:", err);
     }
   };
 
@@ -399,25 +427,63 @@ export default function Studio() {
                     plans.map((plan) => {
                       const config = statusConfig[plan.status];
                       return (
-                        <Link
+                        <div
                           key={plan.id}
-                          to={`/studio/${farm.id}/plan/${plan.id}`}
-                          className="block p-3 rounded-lg border border-[#e4e4e0] hover:border-[#2d7a4f] hover:shadow-sm transition-all group"
+                          className="p-3 rounded-lg border border-[#e4e4e0] hover:border-[#2d7a4f] hover:shadow-sm transition-all group"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <h3 className="text-sm font-medium text-[#1c1c1a] truncate group-hover:text-[#1a4d2e] transition-colors">
-                                {plan.title}
-                              </h3>
-                              <p className="text-[10px] text-[#5a5a57] mt-0.5">
-                                {formatDate(plan.created_at)}
-                              </p>
+                          <Link
+                            to={`/studio/${farm.id}/plan/${plan.id}`}
+                            className="block"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-sm font-medium text-[#1c1c1a] truncate group-hover:text-[#1a4d2e] transition-colors">
+                                  {plan.title}
+                                </h3>
+                                <p className="text-[10px] text-[#5a5a57] mt-0.5">
+                                  {formatDate(plan.created_at)}
+                                </p>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium shrink-0 ${config.color}`}>
+                                {config.label}
+                              </span>
                             </div>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium shrink-0 ${config.color}`}>
-                              {config.label}
-                            </span>
+                          </Link>
+
+                          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-[#e4e4e0]">
+                            {/* Status dropdown */}
+                            <div className="relative flex-1">
+                              <select
+                                value={plan.status}
+                                onChange={(e) => handleUpdatePlanStatus(plan.id, e.target.value)}
+                                className="w-full text-[10px] px-2 py-1 rounded border border-[#e4e4e0] bg-white text-[#1c1c1a] focus:outline-none focus:border-[#2d7a4f] appearance-none cursor-pointer"
+                              >
+                                <option value="draft">Draft</option>
+                                <option value="active">Active</option>
+                                <option value="completed">Completed</option>
+                              </select>
+                            </div>
+
+                            {/* Delete button */}
+                            <button
+                              onClick={() => handleDeletePlan(plan.id)}
+                              disabled={deletingPlanId === plan.id}
+                              className="w-7 h-7 flex items-center justify-center rounded border border-red-200 bg-red-50 text-red-500 hover:bg-red-100 transition-colors disabled:opacity-50 shrink-0"
+                              title="Delete plan"
+                            >
+                              {deletingPlanId === plan.id ? (
+                                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+                                  <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                </svg>
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                  <path d="M2 3h8M4.5 3V2h3v1M5 5v4M7 5v4M3.5 3l.5 7h4l.5-7" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </button>
                           </div>
-                        </Link>
+                        </div>
                       );
                     })
                   )}

@@ -186,3 +186,29 @@ export async function getPlan(planId: string) {
   if (error) throw error;
   return data as FarmPlan;
 }
+
+export async function updatePlanMetadata(planId: string, updates: { title?: string; description?: string | null; status?: string }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('farm_plans')
+    .update({
+      ...updates,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', planId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as FarmPlan;
+}
+
+export async function deletePlan(planId: string) {
+  const { error } = await supabase
+    .from('farm_plans')
+    .delete()
+    .eq('id', planId);
+  if (error) throw error;
+}
