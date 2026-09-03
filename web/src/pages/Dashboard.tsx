@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { deleteFarm } from "../services/api";
 
 // ─── Font loader ──────────────────────────────────────────────────────────────
 function FontLoader() {
@@ -240,12 +241,35 @@ function StatsBar({ farms }: { farms: Farm[] }) {
 }
 
 // ─── Farm card ────────────────────────────────────────────────────────────────
-function FarmCard({ farm }: { farm: Farm }) {
+function FarmCard({
+  farm,
+  onDelete,
+}: {
+  farm: Farm;
+  onDelete?: (farmId: string) => void;
+}) {
   return (
     <Link
       to={`/studio/${farm.id}`}
-      className="group bg-white rounded-xl border border-[#e4e4e0] hover:border-[#2d7a4f] hover:shadow-md transition-all overflow-hidden flex flex-col"
+      className="group bg-white rounded-xl border border-[#e4e4e0] hover:border-[#2d7a4f] hover:shadow-md transition-all overflow-hidden flex flex-col relative"
     >
+      {/* Delete button — appears on hover */}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(farm.id);
+          }}
+          className="absolute top-2 right-2 z-10 w-8 h-8 rounded-lg bg-white/90 border border-red-200 text-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-50 transition-all shadow-sm"
+          aria-label={`Delete farm ${farm.name}`}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M1 3h12M4 3V2a1 1 0 011-1h4a1 1 0 011 1v1M5 6v5M9 6v5M3 3l.5 8a1 1 0 001 1h4a1 1 0 001-1l.5-8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
       {/* Mini map placeholder */}
       <div className="bg-[#0f3320] h-32 relative flex items-center justify-center overflow-hidden">
         <svg viewBox="0 0 200 120" className="w-full h-full opacity-80" aria-hidden="true">
@@ -370,6 +394,59 @@ function SkeletonCard() {
   );
 }
 
+// ─── Confirmation dialog ──────────────────────────────────────────────────────
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onCancel}
+        aria-hidden="true"
+      />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6">
+        <h3 className="text-lg font-bold text-[#1c1c1a] mb-2">{title}</h3>
+        <p className="text-sm text-[#5a5a57] mb-6 leading-relaxed">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium border border-[#d8d8d4] text-[#1c1c1a] hover:bg-[#f0ede8] transition-colors"
+          >
+            {cancelText}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard page ───────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -379,6 +456,11 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [cropFilter, setCropFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"updated" | "area" | "name">("updated");
+
+  // Delete confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [farmToDelete, setFarmToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Auth guard + fetch data ────────────────────────────────────────────────
   useEffect(() => {
@@ -421,6 +503,26 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/login");
+  };
+
+  const handleDeleteFarm = (farmId: string) => {
+    setFarmToDelete(farmId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!farmToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteFarm(farmToDelete);
+      setFarms((prev) => prev.filter((f) => f.id !== farmToDelete));
+      setDeleteConfirmOpen(false);
+      setFarmToDelete(null);
+    } catch (err: any) {
+      alert(err.message ?? "Failed to delete farm.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // ── Filter + sort ──────────────────────────────────────────────────────────
@@ -542,9 +644,23 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((farm) => <FarmCard key={farm.id} farm={farm} />)}
+            {filtered.map((farm) => <FarmCard key={farm.id} farm={farm} onDelete={handleDeleteFarm} />)}
           </div>
         )}
+
+        {/* Delete confirmation dialog */}
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          title="Delete farm"
+          message={`Are you sure you want to delete "${farms.find((f) => f.id === farmToDelete)?.name}"? This will also remove all associated plans and roads. This action cannot be undone.`}
+          confirmText="Delete"
+          cancelText="Keep"
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            setDeleteConfirmOpen(false);
+            setFarmToDelete(null);
+          }}
+        />
       </main>
     </div>
   );

@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
-import { getFarms } from '../services/api';
+import { getFarms, deleteFarm } from '../services/api';
 import { getCachedFarms, setCachedFarms, clearAllCache } from '../services/dataCache';
 import { useSyncQueue, getSyncStatus } from '../services/syncQueue';
 import { networkStatus } from '../services/connectionMonitor';
@@ -120,6 +120,28 @@ export default function DashboardScreen() {
     navigation.navigate('FieldDetail', { farm });
   };
 
+  const handleDeleteFarm = (farmId: string, farmName: string) => {
+    Alert.alert(
+      'Delete farm',
+      `Are you sure you want to delete "${farmName}"? This will also remove all associated plans and roads.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteFarm(farmId);
+              setFarms((prev) => prev.filter((f) => f.id !== farmId));
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete farm.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleLogout = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -167,6 +189,15 @@ export default function DashboardScreen() {
             }}
           >
             <Text style={styles.editText}>Edit Map</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.editButton, styles.deleteButton]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDeleteFarm(item.id, item.name);
+            }}
+          >
+            <Text style={[styles.editText, styles.deleteText]}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -402,6 +433,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.primary,
     fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+    borderWidth: 1,
+  },
+  deleteText: {
+    color: '#dc2626',
   },
   emptyContainer: {
     alignItems: 'center',

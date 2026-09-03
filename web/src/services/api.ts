@@ -97,6 +97,14 @@ export async function getFarm(farmId: string) {
   return data as Farm;
 }
 
+export async function deleteFarm(farmId: string) {
+  const { error } = await supabase
+    .from('farms')
+    .delete()
+    .eq('id', farmId);
+  if (error) throw error;
+}
+
 // --- Roads ---
 export async function getRoads(farmId: string) {
   const { data, error } = await supabase
