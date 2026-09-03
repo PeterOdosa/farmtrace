@@ -70,10 +70,17 @@ export default function Studio() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Redirect if no farmId
+  useEffect(() => {
+    if (!farmId) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [farmId, navigate]);
+
   // ── Load farm + plans ────────────────────────────────────────────────────
   useEffect(() => {
+    if (!farmId) return;
     const load = async () => {
-      if (!farmId) return;
       try {
         const farmData = await getFarm(farmId);
         setFarm(farmData);
@@ -102,9 +109,9 @@ export default function Studio() {
     map.current = new maplibregl.Map({
       container: mapContainer.current,
       style: TILE_STYLES.satellite,
-      center: [3.3792, 6.5244], // default
+      center: [3.3792, 6.5244],
       zoom: 12,
-      attributionControl: true,
+      attributionControl: { compact: true },
     });
 
     map.current.addControl(new maplibregl.NavigationControl(), "top-left");

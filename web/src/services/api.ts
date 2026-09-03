@@ -146,12 +146,42 @@ export async function createFarmPlan(farmId: string, title: string, description:
     .from('farm_plans')
     .insert({
       farm_id: farmId,
-      user_id: user.id,
+      created_by: user.id,
+      updated_by: user.id,
       title,
       description,
       status: 'draft',
+      elements: [],
     })
     .select()
+    .single();
+  if (error) throw error;
+  return data as FarmPlan;
+}
+
+export async function updatePlanElements(planId: string, elements: any[]) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('farm_plans')
+    .update({
+      updated_by: user.id,
+      elements,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', planId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as FarmPlan;
+}
+
+export async function getPlan(planId: string) {
+  const { data, error } = await supabase
+    .from('farm_plans')
+    .select('*')
+    .eq('id', planId)
     .single();
   if (error) throw error;
   return data as FarmPlan;
