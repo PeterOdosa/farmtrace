@@ -97,6 +97,63 @@ async function parseKML(file: File): Promise<ParsedBoundary> {
   throw new Error("KML: unsupported geometry type (expected Polygon)");
 }
 
+// ─── GPX parser ──────────────────────────────────────────────────────────────
+async function parseGPX(file: File): Promise<ParsedBoundary> {
+  const text = await file.text();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, "application/xml");
+
+  // Try to find a track with coordinates
+  const tracks = doc.querySelectorAll("trkseg");
+  if (tracks.length > 0) {
+    const coords: [number, number][] = [];
+    // Use first track segment with coordinates
+    for (const seg of tracks) {
+      const trkpts = seg.querySelectorAll("trkpt");
+      if (trkpts.length > 0) {
+        for (const pt of trkpts) {
+          const lat = parseFloat(pt.getAttribute("lat") || "0");
+          const lon = parseFloat(pt.getAttribute("lon") || "0");
+          coords.push([lon, lat]);
+        }
+      }
+    }
+    if (coords.length < 3) throw new Error("GPX: track has fewer than 3 points");
+    // Close the ring
+    coords.push(coords[0]);
+    return { type: "Polygon", coordinates: [coords] };
+  }
+
+  // Try to find a route
+  const routes = doc.querySelectorAll("rtept");
+  if (routes.length > 0) {
+    const coords: [number, number][] = [];
+    for (const pt of routes) {
+      const lat = parseFloat(pt.getAttribute("lat") || "0");
+      const lon = parseFloat(pt.getAttribute("lon") || "0");
+      coords.push([lon, lat]);
+    }
+    if (coords.length < 3) throw new Error("GPX: route has fewer than 3 points");
+    coords.push(coords[0]);
+    return { type: "Polygon", coordinates: [coords] };
+  }
+
+  // Try to find waypoints and create a polygon from them
+  const waypoints = doc.querySelectorAll("wpt");
+  if (waypoints.length >= 3) {
+    const coords: [number, number][] = [];
+    for (const pt of waypoints) {
+      const lat = parseFloat(pt.getAttribute("lat") || "0");
+      const lon = parseFloat(pt.getAttribute("lon") || "0");
+      coords.push([lon, lat]);
+    }
+    coords.push(coords[0]);
+    return { type: "Polygon", coordinates: [coords] };
+  }
+
+  throw new Error("GPX: no valid track, route, or waypoint group found (need 3+ points)");
+}
+
 // ─── Helper: calculate area from GeoJSON coordinates ──────────────────────────
 function estimateAreaFromCoords(type: string, coords: number[][][] | number[][][][]): number | null {
   // Approximate area using simple shoelace for single polygon
@@ -153,9 +210,9 @@ export default function FarmCreate() {
   const [importError, setImportError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (file: File | null) => {
     if (!file) return;
 
     setImportStatus("loading");
@@ -166,12 +223,14 @@ export default function FarmCreate() {
       let boundary: ParsedBoundary;
       const ext = file.name.split(".").pop()?.toLowerCase();
 
-      if (ext === "geojson" || ext === "json") {
+      if (ext === "gpx") {
+        boundary = await parseGPX(file);
+      } else if (ext === "geojson" || ext === "json") {
         boundary = await parseGeoJSON(file);
       } else if (ext === "kml") {
         boundary = await parseKML(file);
       } else {
-        throw new Error(`Unsupported file format: .${ext}. Please upload a GeoJSON (.geojson) or KML (.kml) file.`);
+        throw new Error(`Unsupported file format: .${ext}. Please upload a GeoJSON (.geojson), KML (.kml), or GPX (.gpx) file.`);
       }
 
       // Add boundary to map or create map
@@ -189,7 +248,42 @@ export default function FarmCreate() {
       setImportStatus("error");
       setImportError(err.message || "Failed to parse file.");
     }
+  };
 
+  // Drag-and-drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  };
+
+  // File input handler (unchanged, delegates to handleFileUpload)
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    handleFileUpload(file);
     // Reset input so same file can be re-uploaded
     e.target.value = "";
   };
@@ -459,11 +553,16 @@ export default function FarmCreate() {
                 </svg>
                 Import GPS boundary
               </h3>
-              <p className="text-xs text-[#5a5a57] mb-3">Upload a GeoJSON or KML file containing your farm's GPS polygon.</p>
+              <p className="text-xs text-[#5a5a57] mb-3">Upload a GeoJSON, KML, or GPX file containing your farm's GPS boundary.</p>
 
               <label
                 htmlFor="gpsFile"
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
                 className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-8 px-4 cursor-pointer transition-all ${
+                  isDragging ? "border-[#1a4d2e] bg-[#e8f0e9] scale-[1.02]" :
                   importStatus === "success"
                     ? "border-[#1a4d2e] bg-[#e8f0e9]"
                     : importStatus === "error"
@@ -502,15 +601,15 @@ export default function FarmCreate() {
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="text-[#8a8a87]">
                       <path d="M10 2v10m0-10l-4 4m4-4l4 4M3 13v4a1 1 0 001 1h12a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    <span className="text-xs font-medium text-[#4a4a48]">Click to upload</span>
-                    <span className="text-[10px] text-[#8a8a87]">GeoJSON or KML</span>
+                    <span className="text-xs font-medium text-[#4a4a48]">Click to upload or drag &amp; drop</span>
+                    <span className="text-[10px] text-[#8a8a87]">GeoJSON, KML, or GPX</span>
                   </div>
                 )}
                 <input
                   id="gpsFile"
                   type="file"
-                  accept=".geojson,.json,.kml"
-                  onChange={handleFileUpload}
+                  accept=".geojson,.json,.kml,.gpx"
+                  onChange={handleFileInputChange}
                   className="hidden"
                   aria-label="Upload GPS boundary file"
                 />
