@@ -553,58 +553,29 @@ export default function FarmCreate() {
                 </svg>
                 Import GPS boundary
               </h3>
-              <p className="text-xs text-[#5a5a57] mb-3">Upload a GeoJSON, KML, or GPX file containing your farm's GPS boundary.</p>
+              <p className="text-xs text-[#5a5a57] mb-3">Upload a GeoJSON, KML, or GPX file with your farm's GPS coordinates.</p>
 
-              <label
-                htmlFor="gpsFile"
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-8 px-4 cursor-pointer transition-all ${
-                  isDragging ? "border-[#1a4d2e] bg-[#e8f0e9] scale-[1.02]" :
-                  importStatus === "success"
-                    ? "border-[#1a4d2e] bg-[#e8f0e9]"
-                    : importStatus === "error"
-                    ? "border-red-300 bg-red-50"
-                    : "border-[#d8d8d4] bg-[#f7f5f0] hover:border-[#2d7a4f] hover:bg-[#f0fdf4]"
-                }`}
-              >
-                {importStatus === "loading" ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <svg className="animate-spin w-6 h-6 text-[#1a4d2e]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
-                      <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                    </svg>
-                    <span className="text-xs text-[#1a4d2e]">Parsing file…</span>
-                  </div>
-                ) : importStatus === "success" && fileName ? (
-                  <div className="flex flex-col items-center gap-1">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="text-[#1a4d2e]">
-                      <path d="M10 1L18 5v6l-8 4-8-4V5l8-4z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                      <circle cx="10" cy="10" r="2" fill="currentColor" />
-                    </svg>
-                    <span className="text-xs font-medium text-[#1a4d2e]">{fileName}</span>
-                    <span className="text-[10px] text-[#5a5a57]">Click to change file</span>
-                  </div>
-                ) : importStatus === "error" ? (
-                  <div className="flex flex-col items-center gap-2 text-center px-2">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="text-red-500">
-                      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.3" />
-                      <path d="M10 6v4M10 13v.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                    </svg>
-                    <span className="text-xs font-medium text-red-600">Failed to parse</span>
-                    <span className="text-[10px] text-red-500 max-w-[200px]">{importError}</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-1">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" className="text-[#8a8a87]">
-                      <path d="M10 2v10m0-10l-4 4m4-4l4 4M3 13v4a1 1 0 001 1h12a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span className="text-xs font-medium text-[#4a4a48]">Click to upload or drag &amp; drop</span>
-                    <span className="text-[10px] text-[#8a8a87]">GeoJSON, KML, or GPX</span>
-                  </div>
-                )}
+              {/* File picker button */}
+              <div className="flex flex-col items-center gap-3">
+                <label
+                  htmlFor="gpsFile"
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                    importStatus === "success"
+                      ? "bg-[#e8f0e9] text-[#1a4d2e] border border-[#2d7a4f]"
+                      : importStatus === "error"
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-[#1a4d2e] text-white hover:bg-[#2d7a4f]"
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M3 9v4a1 1 0 001 1h8a1 1 0 001-1v-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M8 2v6m0-6l-2 2m2-2l2 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M1 7h14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                  {importStatus === "loading" ? "Loading..." : importStatus === "idle" ? "Choose File" : "Change File"}
+                </label>
+
+                {/* File input - hidden, triggered by label click */}
                 <input
                   id="gpsFile"
                   type="file"
@@ -613,7 +584,32 @@ export default function FarmCreate() {
                   className="hidden"
                   aria-label="Upload GPS boundary file"
                 />
-              </label>
+
+                {/* Status display */}
+                {importStatus === "loading" && (
+                  <div className="flex items-center gap-2 text-xs text-[#1a4d2e]">
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+                      <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                    Parsing GPS data...
+                  </div>
+                )}
+
+                {importStatus === "success" && fileName && (
+                  <div className="flex flex-col items-center gap-1 text-xs">
+                    <span className="font-medium text-[#1a4d2e]">{fileName}</span>
+                    <span className="text-[#5a5a57]">Click "Change File" to upload another</span>
+                  </div>
+                )}
+
+                {importStatus === "error" && (
+                  <div className="text-xs text-red-600 text-center max-w-[200px]">
+                    <p className="font-medium">Failed to parse file</p>
+                    <p className="text-red-500">{importError}</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Error message */}
