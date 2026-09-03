@@ -481,7 +481,7 @@ export default function PlanEditor() {
     if (!selectedElementId) return;
     setElements((prev) => prev.filter((el) => el.id !== selectedElementId));
     setSelectedElementId(null);
-    setEditingLabel("");
+    setEditLabel("");
     setUnsaved(true);
 
     // Remove from map
