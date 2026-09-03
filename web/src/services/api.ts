@@ -62,16 +62,13 @@ export async function createFarm(name: string, cropType: string | null, boundary
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase
-    .from('farms')
-    .insert({
-      name,
-      owner_id: user.id,
-      crop_type: cropType,
-      boundary: boundary,
-    })
-    .select()
-    .single();
+  // Convert GeoJSON boundary to PostGIS geometry via ST_GeomFromGeoJSON
+  const { data, error } = await supabase.rpc('create_farm_with_boundary', {
+    p_name: name,
+    p_owner_id: user.id,
+    p_crop_type: cropType,
+    p_boundary: boundary,
+  });
   if (error) throw error;
   return data as Farm;
 }
