@@ -36,7 +36,6 @@ export type Road = {
 export type FarmPlan = {
   id: string;
   farm_id: string;
-  user_id: string;
   created_by: string | null;
   updated_by: string | null;
   title: string;

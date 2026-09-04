@@ -129,12 +129,16 @@ export default function Studio() {
   const addBoundaryToMap = () => {
     if (!map.current || !farm?.boundary) return;
 
+    console.log("[Studio] boundary type:", typeof farm.boundary);
+    console.log("[Studio] boundary value:", typeof farm.boundary === "string" ? farm.boundary.slice(0, 200) : JSON.stringify(farm.boundary).slice(0, 200));
+
     // Convert PostGIS WKT to GeoJSON if needed (boundary is stored as PostGIS geometry)
     let geojson: any;
     if (typeof farm.boundary === "string") {
       geojson = wktToGeoJSON(farm.boundary);
+      console.log("[Studio] WKT parsed result:", geojson);
       if (!geojson) {
-        console.error("Failed to parse boundary WKT:", farm.boundary);
+        console.error("[Studio] Failed to parse boundary WKT:", farm.boundary);
         return;
       }
     } else {
