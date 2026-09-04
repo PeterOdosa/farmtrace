@@ -5,6 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { supabase, Farm, FarmPlan } from "../lib/supabase";
 import { TILE_STYLES, STADIA_API_KEY } from "../config/env";
 import { getFarm, getPlan, updatePlanElements, updatePlanMetadata } from "../services/api";
+import { wktToGeoJSON } from "../utils/wkt";
 
 // ─── Font loader ──────────────────────────────────────────────────────────────
 function FontLoader() {
@@ -175,9 +176,15 @@ export default function PlanEditor() {
       mapLoaded.current = true;
 
       if (farm.boundary) {
+        // Convert PostGIS WKT to GeoJSON if needed
+        const boundaryGeo = typeof farm.boundary === "string"
+          ? wktToGeoJSON(farm.boundary)
+          : farm.boundary;
+        if (!boundaryGeo) return;
+
         (m as any).addSource("farm-boundary", {
           type: "geojson",
-          data: { type: "Feature", geometry: farm.boundary },
+          data: { type: "Feature", geometry: boundaryGeo },
         });
 
         m.addLayer({
@@ -195,9 +202,9 @@ export default function PlanEditor() {
         });
 
         const bounds = new maplibregl.LngLatBounds();
-        const coords = farm.boundary.coordinates;
+        const coords = boundaryGeo.coordinates;
         const flatten = (ring: number[][]) => ring.forEach(([lng, lat]) => bounds.extend([lng, lat]));
-        if (farm.boundary.type === "Polygon") flatten(coords[0] || []);
+        if (boundaryGeo.type === "Polygon") flatten(coords[0] || []);
         else coords.forEach((poly: number[][][]) => poly.forEach(flatten));
         if (!bounds.isEmpty()) m.fitBounds(bounds, { padding: 80, maxZoom: 18 });
       }

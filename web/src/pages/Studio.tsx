@@ -5,6 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { supabase, Farm, FarmPlan } from "../lib/supabase";
 import { TILE_STYLES, STADIA_API_KEY } from "../config/env";
 import { getFarm, getFarmPlans, createFarmPlan, deletePlan, updatePlanMetadata } from "../services/api";
+import { wktToGeoJSON } from "../utils/wkt";
 
 // ─── Font loader ──────────────────────────────────────────────────────────────
 function FontLoader() {
@@ -128,10 +129,17 @@ export default function Studio() {
   const addBoundaryToMap = () => {
     if (!map.current || !farm?.boundary) return;
 
-    const geojson = {
-      type: "Feature" as const,
-      geometry: farm.boundary,
-    };
+    // Convert PostGIS WKT to GeoJSON if needed (boundary is stored as PostGIS geometry)
+    let geojson: any;
+    if (typeof farm.boundary === "string") {
+      geojson = wktToGeoJSON(farm.boundary);
+      if (!geojson) {
+        console.error("Failed to parse boundary WKT:", farm.boundary);
+        return;
+      }
+    } else {
+      geojson = farm.boundary;
+    }
 
     // Remove existing boundary layer if present
     if (boundaryLayerRef.current && map.current.getLayer(boundaryLayerRef.current)) {
