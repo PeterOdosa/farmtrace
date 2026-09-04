@@ -464,7 +464,7 @@ export default function FarmCreate() {
       </header>
 
       {/* Main content */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
         {/* Sidebar form */}
         <aside className="w-full md:w-80 bg-white border-r border-[#e4e4e0] flex flex-col overflow-y-auto shrink-0">
           <div className="p-5 flex flex-col gap-5">
