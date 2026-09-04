@@ -114,7 +114,7 @@ async function parseGPX(file: File): Promise<ParsedBoundary> {
         for (const pt of trkpts) {
           const lat = parseFloat(pt.getAttribute("lat") || "0");
           const lon = parseFloat(pt.getAttribute("lon") || "0");
-          coords.push([lon, lat]);
+          coords.push([lat, lon]); // GeoJSON order: [lat, lng]
         }
       }
     }
@@ -131,7 +131,7 @@ async function parseGPX(file: File): Promise<ParsedBoundary> {
     for (const pt of routes) {
       const lat = parseFloat(pt.getAttribute("lat") || "0");
       const lon = parseFloat(pt.getAttribute("lon") || "0");
-      coords.push([lon, lat]);
+      coords.push([lat, lon]); // GeoJSON order: [lat, lng]
     }
     if (coords.length < 3) throw new Error("GPX: route has fewer than 3 points");
     coords.push(coords[0]);
@@ -145,7 +145,7 @@ async function parseGPX(file: File): Promise<ParsedBoundary> {
     for (const pt of waypoints) {
       const lat = parseFloat(pt.getAttribute("lat") || "0");
       const lon = parseFloat(pt.getAttribute("lon") || "0");
-      coords.push([lon, lat]);
+      coords.push([lat, lon]); // GeoJSON order: [lat, lng]
     }
     coords.push(coords[0]);
     return { type: "Polygon", coordinates: [coords] };
@@ -174,10 +174,10 @@ function estimateAreaFromCoords(type: string, coords: number[][][] | number[][][
 // ─── Helper: get center from coordinates ──────────────────────────────────────
 function getCenterFromCoords(type: string, coords: number[][][] | number[][][][]): [number, number] {
   if (type === "Polygon" && coords.length > 0 && coords[0].length > 0) {
-    const ring = coords[0];
-    const avgLng = ring.reduce((s, p) => s + p[0], 0) / ring.length;
-    const avgLat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-    return [avgLng, avgLat];
+    const ring = coords[0]; // GeoJSON: [lat, lng] pairs
+    const avgLat = ring.reduce((s, p) => s + p[0], 0) / ring.length;
+    const avgLng = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+    return [avgLng, avgLat]; // MapLibre center: [lng, lat]
   }
   return [3.3792, 6.5244]; // default Lagos
 }
@@ -211,6 +211,7 @@ export default function FarmCreate() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [parsedBoundary, setParsedBoundary] = useState<ParsedBoundary | null>(null);
 
   const handleFileUpload = async (file: File | null) => {
     if (!file) return;
@@ -235,6 +236,7 @@ export default function FarmCreate() {
 
       // Add boundary to map or create map
       const center = getCenterFromCoords(boundary.type, boundary.coordinates);
+      setParsedBoundary(boundary);
 
       if (!map.current) {
         initMap(boundary, center);
@@ -247,6 +249,7 @@ export default function FarmCreate() {
       console.error("Import error:", err);
       setImportStatus("error");
       setImportError(err.message || "Failed to parse file.");
+      setParsedBoundary(null);
     }
   };
 
@@ -303,7 +306,7 @@ export default function FarmCreate() {
       style: TILE_STYLES.satellite,
       center: center,
       zoom: 14,
-      attributionControl: true,
+      attributionControl: {},
     });
 
     map.current.addControl(new maplibregl.NavigationControl(), "top-left");
@@ -399,7 +402,7 @@ export default function FarmCreate() {
       return;
     }
 
-    if (importStatus !== "success") {
+    if (!parsedBoundary) {
       setImportError("Please upload and validate a GPS boundary file.");
       return;
     }
@@ -408,53 +411,10 @@ export default function FarmCreate() {
     setImportError(null);
 
     try {
-      // Read the uploaded file to get the full boundary for storage
-      const fileInput = document.getElementById("gpsFile") as HTMLInputElement;
-      const file = fileInput?.files?.[0];
-
-      let boundaryGeom: any;
-
-      if (file) {
-        const text = await file.text();
-        const ext = file.name.split(".").pop()?.toLowerCase();
-
-        if (ext === "geojson" || ext === "json") {
-          const json = JSON.parse(text);
-          if (json.type === "FeatureCollection" && json.features.length > 0) {
-            boundaryGeom = json.features[0].geometry;
-          } else if (json.type === "Polygon" || json.type === "MultiPolygon") {
-            boundaryGeom = json;
-          }
-        } else if (ext === "kml") {
-          // For KML, we need to convert to GeoJSON polygon
-          boundaryGeom = { type: "Polygon", coordinates: [] }; // Will be set from parsed coords
-          // We'll use the boundary from the map source
-          if (map.current && (map.current as any).getSource("farm-boundary")) {
-            const geojson = (map.current as any).getSource("farm-boundary")?.getGeoJSON();
-            if (geojson && geojson.type === "Feature") {
-              boundaryGeom = geojson.geometry;
-            }
-          }
-        }
-      }
-
-      // Fallback: try to get from map
-      if (!boundaryGeom || !boundaryGeom.coordinates) {
-        if (map.current && (map.current as any).getSource("farm-boundary")) {
-          const geojson = (map.current as any).getSource("farm-boundary")?.getGeoJSON();
-          if (geojson && geojson.type === "Feature") {
-            boundaryGeom = geojson.geometry;
-          }
-        }
-      }
-
-      if (!boundaryGeom || !boundaryGeom.coordinates || boundaryGeom.coordinates.length === 0) {
-        setImportError("No boundary data found. Please upload a valid GPS file.");
-        setLoading(false);
-        return;
-      }
-
-      await createFarm(name.trim(), cropType, boundaryGeom);
+      await createFarm(name.trim(), cropType, {
+        type: parsedBoundary.type,
+        coordinates: parsedBoundary.coordinates,
+      });
 
       navigate("/dashboard");
     } catch (err: any) {
