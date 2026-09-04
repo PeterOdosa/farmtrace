@@ -555,11 +555,27 @@ export default function FarmCreate() {
               </h3>
               <p className="text-xs text-[#5a5a57] mb-3">Upload a GeoJSON, KML, or GPX file with your farm's GPS coordinates.</p>
 
-              {/* File picker button */}
-              <div className="flex flex-col items-center gap-3">
+              {/* Drop zone + file picker */}
+              <div
+                className={`flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-6 transition-all ${
+                  isDragging
+                    ? "border-[#1a4d2e] bg-[#e8f0e9]"
+                    : "border-[#d8d8d4] bg-[#f7f5f0]"
+                }`}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true" className="shrink-0">
+                  <path d="M16 6v14m0-14l-5 5m5-5l5 5M6 20v5a2 2 0 002 2h16a2 2 0 002-2v-5" stroke="#1a4d2e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M4 27h24" stroke="#1a4d2e" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <p className="text-xs text-[#5a5a57] text-center">Drag & drop your GPS file here</p>
+
                 <label
                   htmlFor="gpsFile"
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                     importStatus === "success"
                       ? "bg-[#e8f0e9] text-[#1a4d2e] border border-[#2d7a4f]"
                       : importStatus === "error"
@@ -584,32 +600,32 @@ export default function FarmCreate() {
                   className="hidden"
                   aria-label="Upload GPS boundary file"
                 />
-
-                {/* Status display */}
-                {importStatus === "loading" && (
-                  <div className="flex items-center gap-2 text-xs text-[#1a4d2e]">
-                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
-                      <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                    </svg>
-                    Parsing GPS data...
-                  </div>
-                )}
-
-                {importStatus === "success" && fileName && (
-                  <div className="flex flex-col items-center gap-1 text-xs">
-                    <span className="font-medium text-[#1a4d2e]">{fileName}</span>
-                    <span className="text-[#5a5a57]">Click "Change File" to upload another</span>
-                  </div>
-                )}
-
-                {importStatus === "error" && (
-                  <div className="text-xs text-red-600 text-center max-w-[200px]">
-                    <p className="font-medium">Failed to parse file</p>
-                    <p className="text-red-500">{importError}</p>
-                  </div>
-                )}
               </div>
+
+              {/* Status display */}
+              {importStatus === "loading" && (
+                <div className="flex items-center justify-center gap-2 text-xs text-[#1a4d2e] mt-3">
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+                    <path d="M12 2a10 10 0 0110 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                  Parsing GPS data...
+                </div>
+              )}
+
+              {importStatus === "success" && fileName && (
+                <div className="flex flex-col items-center gap-1 text-xs mt-3">
+                  <span className="font-medium text-[#1a4d2e]">{fileName}</span>
+                  <span className="text-[#5a5a57]">Click "Change File" to upload another</span>
+                </div>
+              )}
+
+              {importStatus === "error" && (
+                <div className="text-xs text-red-600 text-center max-w-[280px] mt-3">
+                  <p className="font-medium">Failed to parse file</p>
+                  <p className="text-red-500">{importError}</p>
+                </div>
+              )}
             </div>
 
             {/* Error message */}
