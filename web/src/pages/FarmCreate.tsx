@@ -107,20 +107,18 @@ async function parseGPX(file: File): Promise<ParsedBoundary> {
   const tracks = doc.querySelectorAll("trkseg");
   if (tracks.length > 0) {
     const coords: [number, number][] = [];
-    // Use first track segment with coordinates
     for (const seg of tracks) {
       const trkpts = seg.querySelectorAll("trkpt");
       if (trkpts.length > 0) {
         for (const pt of trkpts) {
           const lat = parseFloat(pt.getAttribute("lat") || "0");
           const lon = parseFloat(pt.getAttribute("lon") || "0");
-          coords.push([lat, lon]); // GeoJSON order: [lat, lng]
+          coords.push([lon, lat]); // GeoJSON order: [lng, lat]
         }
       }
     }
     if (coords.length < 3) throw new Error("GPX: track has fewer than 3 points");
-    // Close the ring
-    coords.push(coords[0]);
+    coords.push(coords[0]); // close ring
     return { type: "Polygon", coordinates: [coords] };
   }
 
@@ -131,7 +129,7 @@ async function parseGPX(file: File): Promise<ParsedBoundary> {
     for (const pt of routes) {
       const lat = parseFloat(pt.getAttribute("lat") || "0");
       const lon = parseFloat(pt.getAttribute("lon") || "0");
-      coords.push([lat, lon]); // GeoJSON order: [lat, lng]
+      coords.push([lon, lat]); // GeoJSON order: [lng, lat]
     }
     if (coords.length < 3) throw new Error("GPX: route has fewer than 3 points");
     coords.push(coords[0]);
@@ -145,7 +143,7 @@ async function parseGPX(file: File): Promise<ParsedBoundary> {
     for (const pt of waypoints) {
       const lat = parseFloat(pt.getAttribute("lat") || "0");
       const lon = parseFloat(pt.getAttribute("lon") || "0");
-      coords.push([lat, lon]); // GeoJSON order: [lat, lng]
+      coords.push([lon, lat]); // GeoJSON order: [lng, lat]
     }
     coords.push(coords[0]);
     return { type: "Polygon", coordinates: [coords] };
@@ -174,10 +172,13 @@ function estimateAreaFromCoords(type: string, coords: number[][][] | number[][][
 // ─── Helper: get center from coordinates ──────────────────────────────────────
 function getCenterFromCoords(type: string, coords: number[][][] | number[][][][]): [number, number] {
   if (type === "Polygon" && coords.length > 0 && coords[0].length > 0) {
-    const ring = coords[0]; // GeoJSON: [lat, lng] pairs
-    const avgLat = ring.reduce((s, p) => s + p[0], 0) / ring.length;
-    const avgLng = ring.reduce((s, p) => s + p[1], 0) / ring.length;
-    return [avgLng, avgLat]; // MapLibre center: [lng, lat]
+    const ring = coords[0]; // GeoJSON: [lng, lat] pairs — same order MapLibre expects
+    let sumLng = 0, sumLat = 0;
+    for (const [lng, lat] of ring) {
+      sumLng += lng;
+      sumLat += lat;
+    }
+    return [sumLng / ring.length, sumLat / ring.length];
   }
   return [3.3792, 6.5244]; // default Lagos
 }
@@ -343,7 +344,7 @@ export default function FarmCreate() {
 
       setBoundarySourceAdded(true);
 
-      // Fit bounds
+      // Fit bounds — GeoJSON coords are [lng, lat], extend expects [lng, lat]
       const geojson = (map.current! as any).getSource("farm-boundary")?.getGeoJSON();
       if (geojson && "features" in geojson) {
         const coords = (geojson as any).features[0].geometry.coordinates;
@@ -372,7 +373,7 @@ export default function FarmCreate() {
       return;
     }
 
-    // Re-fit bounds
+    // Re-fit bounds — GeoJSON coords are [lng, lat], extend expects [lng, lat]
     const geojson = (map.current as any).getSource("farm-boundary")?.getGeoJSON();
     if (geojson && "features" in geojson) {
       const coords = (geojson as any).features[0].geometry.coordinates;
