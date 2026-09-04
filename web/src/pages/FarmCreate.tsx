@@ -611,16 +611,16 @@ export default function FarmCreate() {
         <div className="flex-1 min-h-0">
           <div ref={mapContainer} className="w-full h-full" />
           {importStatus === "idle" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#f7f5f0] pointer-events-none">
-              <div className="text-center px-8">
-                <div className="w-12 h-12 rounded-xl bg-[#e8f0e9] flex items-center justify-center mx-auto mb-3">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" stroke="#1a4d2e" strokeWidth="1.3" strokeLinejoin="round" />
-                    <circle cx="12" cy="12" r="3" stroke="#1a4d2e" strokeWidth="1.3" />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-center px-8 py-10 bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm mx-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#e8f0e9] flex items-center justify-center mx-auto mb-4">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" stroke="#1a4d2e" strokeWidth="1.5" strokeLinejoin="round" />
+                    <circle cx="12" cy="12" r="3" stroke="#1a4d2e" strokeWidth="1.5" />
                   </svg>
                 </div>
-                <p className="text-sm font-medium text-[#1c1c1a] mb-1">Upload a GPS file to get started</p>
-                <p className="text-xs text-[#5a5a57]">Your boundary will appear here for preview</p>
+                <p className="text-base font-semibold text-[#1c1c1a] mb-1">Upload a GPS file to get started</p>
+                <p className="text-sm text-[#3a3a38]">Your boundary will appear here for preview</p>
               </div>
             </div>
           )}
